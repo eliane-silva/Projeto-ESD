@@ -7,6 +7,19 @@ POC 5 — Anti-Platform Throttling
 
 Simular e medir estratégias de distribuição temporal de engajamento em plataformas externas, evitando throttling e penalizações algorítmicas.
 
+Escopo
+• Simulação de volume de engajamento direcionado em ambiente controlado
+• Distribuição temporal com jitter variável e rate limiting por conteúdo
+• Medição de thresholds estimados por plataforma (YouTube, Instagram, TikTok)
+• Fila inteligente: balanceamento de carga entre campanhas ativas
+• Pool de conteúdos rotativos com múltiplas URLs por anunciante
+
+Padrões Recomendados: Rate Limit/Throttling, Load Balancing, Queues/PubSub/Fanout, Traffic
+Sharding, Bulkhead/Isolation, Circuit Breaker, Feature Flag
+
+Decisões-Chave: Thresholds por plataforma, estratégia de distribuição, alertas e pausa
+automática
+
 ## Integrantes da equipe
 
 1. **BRUNO FORMIGA BRANDÃO**  
