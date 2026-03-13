@@ -4,6 +4,7 @@ Repositório para o projeto da disciplina de Engenharia de Sistemas Distribuído
 ## Tema da equipe
 
 POC 5 — Anti-Platform Throttling
+
 Simular e medir estratégias de distribuição temporal de engajamento em plataformas externas, evitando throttling e penalizações algorítmicas.
 
 ## Integrantes da equipe
