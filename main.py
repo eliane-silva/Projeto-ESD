@@ -1,7 +1,14 @@
+import redis
 import subprocess
 import requests
 import time
 
+FLAGS = [
+    "flag:threshold",
+    "flag:dynamic_distribution",
+    "flag:jitter",
+    "flag:circuit_breaker",
+]
 SCHEDULER_URL = "http://localhost:8000/start_campaign"
 YOUTUBE_URL = "http://localhost:8001/api/youtube/get_likes"
 INSTAGRAM_URL = "http://localhost:8002/api/instagram/get_likes"
@@ -14,30 +21,14 @@ def esperar_scheduler():
 
     while True:
         try:
-            r = requests.get(url)
-            if r.status_code == 200:
+            res = requests.get(url)
+            if res.status_code == 200:
                 print("Scheduler pronto!\n")
                 break
         except:
             pass
 
         time.sleep(1)
-
-
-def ver_likes():
-    try:
-        r_youtube = requests.get(YOUTUBE_URL)
-        r_instagram = requests.get(INSTAGRAM_URL)
-        likes_youtube = r_youtube.json()['likes']
-        likes_instagram = r_instagram.json()['likes']
-
-        print("\n=== TOTAL DE LIKES ===")
-        print(f"YouTube:   {likes_youtube}")
-        print(f"Instagram: {likes_instagram}")
-        print("======================\n")
-
-    except Exception as e:
-        print("Erro ao buscar likes:", e)
 
 
 def subir_docker(workers):
@@ -75,12 +66,45 @@ def enviar_campanha(plataforma, acoes):
         print("Erro ao enviar campanha:", response.text)
 
 
+def ver_likes():
+    try:
+        r_youtube = requests.get(YOUTUBE_URL)
+        r_instagram = requests.get(INSTAGRAM_URL)
+        likes_youtube = r_youtube.json()['likes']
+        likes_instagram = r_instagram.json()['likes']
+
+        print("\n=== TOTAL DE LIKES ===")
+        print(f"YouTube:   {likes_youtube}")
+        print(f"Instagram: {likes_instagram}")
+        print("======================\n")
+
+    except Exception as e:
+        print("Erro ao buscar likes:", e)
+
+
+def mudar_flags():
+    print("\n")
+    for i, flag in enumerate(FLAGS, 1):
+        print(f"{i} | {flag:<40} | {r.get(flag)}")
+    print("0 | Sair")
+
+    op = int(input("Qual flag deseja alternar? "))
+    if op == 0:
+        return
+    op -= 1
+    if r.get(FLAGS[op]) == "0":
+        r.set(FLAGS[op], 1)
+    else:
+        r.set(FLAGS[op], 0)
+
+
 def menu():
     while True:
         print("\nEscolha:")
         print("1 - Adicionar likes no YouTube")
         print("2 - Adicionar likes no Instagram")
         print("3 - Ver likes")
+        print("4 - Mudar flags")
         print("0 - Sair")
 
         op = input("> ")
@@ -95,6 +119,10 @@ def menu():
             plataforma = "instagram"
         elif op == "3":
             ver_likes()
+            input("Aperte 'Enter' para continuar...")
+            continue
+        elif op == "4":
+            mudar_flags()
             input("Aperte 'Enter' para continuar...")
             continue
         else:
@@ -120,6 +148,12 @@ def main():
 
     subir_docker(workers)
     esperar_scheduler()
+
+    global r
+    r = redis.from_url("redis://localhost:6379/0", decode_responses=True)
+    time.sleep(1)
+    for flag in FLAGS:
+        r.set(flag, 1)
     menu()
 
 

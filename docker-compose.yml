@@ -12,7 +12,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
-    command: python -m uvicorn app:app --host 0.0.0.0 --port 8001 --reload
+    command: python -u -m uvicorn app:app --host 0.0.0.0 --port 8001 
 
   fake_instagram:
     build: ./services/fake_instagram
@@ -22,7 +22,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
-    command: python -m uvicorn app:app --host 0.0.0.0 --port 8002 --reload
+    command: python -u -m uvicorn app:app --host 0.0.0.0 --port 8002 
 
   scheduler:
     build: ./services/scheduler
@@ -32,7 +32,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
-    command: python -m uvicorn scheduler:app --host 0.0.0.0 --port 8000 --reload
+    command: python -u -m uvicorn scheduler:app --host 0.0.0.0 --port 8000 
 
   worker:
     build: ./services/worker
