@@ -44,4 +44,4 @@ services:
       - redis
       - fake_youtube
       - fake_instagram
-    command: python worker.py
+    command: python -u worker.py

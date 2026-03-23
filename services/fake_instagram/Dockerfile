@@ -1,5 +1,5 @@
 FROM python:3.11-slim
 WORKDIR /app
-# Instalamos os pacotes direto aqui para não precisar do requirements.txt
-RUN pip install --no-cache-dir fastapi uvicorn redis httpx
+RUN apt-get update && apt-get install -y libpq-dev gcc
+RUN pip install --no-cache-dir fastapi uvicorn redis httpx psycopg2-binary
 COPY . .
