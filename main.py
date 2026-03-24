@@ -61,7 +61,8 @@ def enviar_campanha(plataforma, acoes):
     response = requests.post(SCHEDULER_URL, params=params)
 
     if response.status_code == 200:
-        print(f"\nCampanha enviada: {plataforma} ({acoes} ações)\n")
+        print(f"\nCampanha enviada: {plataforma} ({acoes} ações)")
+        print(f"Resposta: {response.text}\n")
     else:
         print("Erro ao enviar campanha:", response.text)
 

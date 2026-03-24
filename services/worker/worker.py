@@ -90,6 +90,13 @@ while True:
                     }
                     response = client.post(
                         "http://scheduler:8000/throttle", params=params)
+
+                params = {
+                    "platform": plataforma
+                }
+                responde = client.post(
+                    "http://scheduler:8000/unlock", params=params
+                )
             except Exception as e:
                 print(f"Erro de conexão: {e}")
                 break

@@ -7,8 +7,8 @@ import uuid
 app = FastAPI(title="Fake Instagram")
 r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
-LIMIT = 30
-WINDOW = 60
+LIMIT = 120
+WINDOW = 1
 
 
 @app.post("/api/instagram/like")
