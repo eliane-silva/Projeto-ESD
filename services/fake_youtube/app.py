@@ -1,43 +1,55 @@
 from fastapi import FastAPI, HTTPException, Request
-import redis
-import os
 import time
-import uuid
 
 app = FastAPI(title="Fake YouTube")
-r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
 LIMIT = 1
 WINDOW = 5
 
+# Estruturas em memória
+requests_por_ip = {}   # ip -> [timestamps]
+total_likes = 0
+
 
 @app.post("/api/youtube/like")
 def youtube_like(request: Request):
-    ip = request.client.host
-    key = f"limit:youtube:{ip}"
+    global total_likes
 
+    ip = request.client.host
     now = time.time()
 
-    r.zremrangebyscore(key, 0, now - WINDOW)
+    if ip not in requests_por_ip:
+        requests_por_ip[ip] = []
 
-    current = r.zcard(key)
+    # Remove requisições fora da janela
+    requests_por_ip[ip] = [
+        t for t in requests_por_ip[ip] if t > now - WINDOW
+    ]
+
+    current = len(requests_por_ip[ip])
 
     if current >= LIMIT:
         raise HTTPException(
-            status_code=429, detail="YouTube: Too Many Requests")
+            status_code=429, detail="YouTube: Too Many Requests"
+        )
 
-    r.zadd(key, {str(uuid.uuid4()): now})
-    r.expire(key, WINDOW)
+    # Adiciona nova requisição
+    requests_por_ip[ip].append(now)
 
-    r.incr("likes:youtube")
-    time.sleep(0.1)  # Simula latência
-    return {"status": "success", "platform": "youtube", "requests": current + 1, "total_likes": r.get("likes:youtube")}
+    total_likes += 1
+
+    time.sleep(0.1)  # simula latência
+
+    return {
+        "status": "success",
+        "platform": "youtube",
+        "requests": current + 1,
+        "total_likes": total_likes
+    }
 
 
 @app.get("/api/youtube/get_likes")
 def get_likes():
-    total = r.get("likes:youtube") or 0
-
     return {
-        "likes": int(total),
+        "likes": total_likes
     }

@@ -1,42 +1,55 @@
 from fastapi import FastAPI, HTTPException, Request
-import redis
-import os
 import time
-import uuid
 
 app = FastAPI(title="Fake Instagram")
-r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
 LIMIT = 120
 WINDOW = 1
 
+# Estruturas em memória
+requests_por_ip = {}   # ip -> [timestamps]
+total_likes = 0
+
 
 @app.post("/api/instagram/like")
 def instagram_like(request: Request):
-    ip = request.client.host
-    key = f"limit:instagram:{ip}"
+    global total_likes
 
+    ip = request.client.host
     now = time.time()
 
-    r.zremrangebyscore(key, 0, now - WINDOW)
+    if ip not in requests_por_ip:
+        requests_por_ip[ip] = []
 
-    current = r.zcard(key)
+    # remove requisições antigas
+    requests_por_ip[ip] = [
+        t for t in requests_por_ip[ip] if t > now - WINDOW
+    ]
+
+    current = len(requests_por_ip[ip])
 
     if current >= LIMIT:
         raise HTTPException(
-            status_code=429, detail="YouTube: Too Many Requests")
+            status_code=429, detail="Instagram: Too Many Requests"
+        )
 
-    r.zadd(key, {str(uuid.uuid4()): now})
-    r.expire(key, WINDOW)
+    # adiciona nova requisição
+    requests_por_ip[ip].append(now)
 
-    r.incr("likes:instagram")
+    total_likes += 1
+
     time.sleep(0.1)
-    return {"status": "success", "platform": "instagram", "requests": current + 1, "total_likes": r.get("likes:instagram")}
+
+    return {
+        "status": "success",
+        "platform": "instagram",
+        "requests": current + 1,
+        "total_likes": total_likes
+    }
+
 
 @app.get("/api/instagram/get_likes")
 def get_likes():
-    total = r.get("likes:instagram") or 0
-
     return {
-        "likes": int(total),
+        "likes": total_likes
     }
