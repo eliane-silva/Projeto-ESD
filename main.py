@@ -9,13 +9,14 @@ FLAGS = [
     "flag:jitter",
     "flag:circuit_breaker",
 ]
+
 SCHEDULER_URL = "http://localhost:8000/start_campaign"
 YOUTUBE_URL = "http://localhost:8001/api/youtube/get_likes"
 INSTAGRAM_URL = "http://localhost:8002/api/instagram/get_likes"
 
 
 def esperar_scheduler():
-    url = "http://localhost:8000/docs"  # ou qualquer endpoint
+    url = "http://localhost:8000/docs"
 
     print("Aguardando scheduler ficar pronto...")
 
@@ -43,8 +44,7 @@ def subir_docker(workers):
     print(f"Subindo sistema com {workers} workers...")
 
     subprocess.Popen(
-        ["docker", "compose", "up", "--build",
-            f"--scale", f"worker={workers}"],
+        ["docker", "compose", "up", "--build", "--scale", f"worker={workers}"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
@@ -52,16 +52,41 @@ def subir_docker(workers):
     print("Aguardando serviços iniciarem...\n")
 
 
-def enviar_campanha(plataforma, acoes):
+def escolher_content_id(plataforma):
+    if plataforma == "youtube":
+        prefixo = "youtube_video"
+    else:
+        prefixo = "instagram_video"
+
+    print("\nEscolha o conteúdo:")
+    for i in range(1, 6):
+        print(f"{i} - {prefixo}_{i}")
+
+    op = input("> ")
+
+    try:
+        op = int(op)
+        if 1 <= op <= 5:
+            return f"{prefixo}_{op}"
+    except:
+        pass
+
+    print("Conteúdo inválido")
+    return None
+
+
+def enviar_campanha(plataforma, acoes, content_id):
     params = {
         "platform": plataforma,
-        "actions": acoes
+        "actions": acoes,
+        "content_id": content_id
     }
 
     response = requests.post(SCHEDULER_URL, params=params)
 
     if response.status_code == 200:
         print(f"\nCampanha enviada: {plataforma} ({acoes} ações)")
+        print(f"Conteúdo: {content_id}")
         print(f"Resposta: {response.text}\n")
     else:
         print("Erro ao enviar campanha:", response.text)
@@ -71,13 +96,30 @@ def ver_likes():
     try:
         r_youtube = requests.get(YOUTUBE_URL)
         r_instagram = requests.get(INSTAGRAM_URL)
-        likes_youtube = r_youtube.json()['likes']
-        likes_instagram = r_instagram.json()['likes']
+
+        data_youtube = r_youtube.json()
+        data_instagram = r_instagram.json()
+
+        total_youtube = data_youtube.get("total_likes", 0)
+        total_instagram = data_instagram.get("total_likes", 0)
+
+        videos_youtube = data_youtube.get("videos", {})
+        videos_instagram = data_instagram.get("videos", {})
 
         print("\n=== TOTAL DE LIKES ===")
-        print(f"YouTube:   {likes_youtube}")
-        print(f"Instagram: {likes_instagram}")
-        print("======================\n")
+        print(f"YouTube:   {total_youtube}")
+        print(f"Instagram: {total_instagram}")
+        print("======================")
+
+        print("\n--- YouTube por vídeo ---")
+        for video_id, likes in videos_youtube.items():
+            print(f"{video_id}: {likes}")
+
+        print("\n--- Instagram por vídeo ---")
+        for video_id, likes in videos_instagram.items():
+            print(f"{video_id}: {likes}")
+
+        print("")
 
     except Exception as e:
         print("Erro ao buscar likes:", e)
@@ -93,6 +135,7 @@ def mudar_flags():
     if op == 0:
         return
     op -= 1
+
     if r.get(FLAGS[op]) == "0":
         r.set(FLAGS[op], 1)
     else:
@@ -136,7 +179,12 @@ def menu():
             print("Número inválido")
             continue
 
-        enviar_campanha(plataforma, acoes)
+        content_id = escolher_content_id(plataforma)
+        if content_id is None:
+            input("Aperte 'Enter' para continuar...")
+            continue
+
+        enviar_campanha(plataforma, acoes, content_id)
         input("Aperte 'Enter' para continuar...")
 
 
@@ -153,8 +201,10 @@ def main():
     global r
     r = redis.from_url("redis://localhost:6379/0", decode_responses=True)
     time.sleep(1)
+
     for flag in FLAGS:
         r.set(flag, 1)
+
     menu()
 
 

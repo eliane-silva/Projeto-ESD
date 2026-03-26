@@ -1,55 +1,80 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Query
 import time
 
-app = FastAPI(title="Fake YouTube")
+app = FastAPI(title='Fake YouTube')
 
-LIMIT = 1
-WINDOW = 5
+LIMIT = 120
+WINDOW = 1
 
-# Estruturas em memória
-requests_por_ip = {}   # ip -> [timestamps]
-total_likes = 0
+videos = {
+    f'youtube_video_{i}': {'likes': 0}
+    for i in range(1, 6)
+}
+
+requests_por_ip = {}
 
 
-@app.post("/api/youtube/like")
-def youtube_like(request: Request):
-    global total_likes
+@app.get('/api/youtube/videos')
+def list_videos():
+    return {
+        'platform': 'youtube',
+        'videos': [
+            {'video_id': video_id, 'likes': data['likes']}
+            for video_id, data in videos.items()
+        ]
+    }
 
+
+@app.post('/api/youtube/like')
+def youtube_like(
+    request: Request,
+    video_id: str = Query(..., description='Identificador do conteúdo')
+):
     ip = request.client.host
     now = time.time()
+
+    if video_id not in videos:
+        raise HTTPException(status_code=404, detail='YouTube: conteúdo não encontrado')
 
     if ip not in requests_por_ip:
         requests_por_ip[ip] = []
 
-    # Remove requisições fora da janela
-    requests_por_ip[ip] = [
-        t for t in requests_por_ip[ip] if t > now - WINDOW
-    ]
-
+    requests_por_ip[ip] = [t for t in requests_por_ip[ip] if t > now - WINDOW]
     current = len(requests_por_ip[ip])
 
     if current >= LIMIT:
-        raise HTTPException(
-            status_code=429, detail="YouTube: Too Many Requests"
-        )
+        raise HTTPException(status_code=429, detail='YouTube: Too Many Requests')
 
-    # Adiciona nova requisição
     requests_por_ip[ip].append(now)
+    videos[video_id]['likes'] += 1
 
-    total_likes += 1
-
-    time.sleep(0.1)  # simula latência
+    time.sleep(0.1)
 
     return {
-        "status": "success",
-        "platform": "youtube",
-        "requests": current + 1,
-        "total_likes": total_likes
+        'status': 'success',
+        'platform': 'youtube',
+        'video_id': video_id,
+        'requests': current + 1,
+        'likes_for_video': videos[video_id]['likes'],
+        'total_likes': sum(video['likes'] for video in videos.values())
     }
 
 
-@app.get("/api/youtube/get_likes")
-def get_likes():
+@app.get('/api/youtube/get_likes')
+def get_likes(video_id: str | None = None):
+    if video_id is not None:
+        if video_id not in videos:
+            raise HTTPException(status_code=404, detail='YouTube: conteúdo não encontrado')
+        return {
+            'platform': 'youtube',
+            'video_id': video_id,
+            'likes': videos[video_id]['likes']
+        }
+
     return {
-        "likes": total_likes
+        'platform': 'youtube',
+        'total_likes': sum(video['likes'] for video in videos.values()),
+        'videos': {
+            video_id: data['likes'] for video_id, data in videos.items()
+        }
     }
