@@ -67,7 +67,8 @@ while True:
                     if r.get('flag:circuit_breaker') == '1':
                         print(f'[{plataforma}/{content_id}] BLOQUEADO (429)! Abrindo circuito.')
                         circuit_open = True
-                        pause_time *= 2
+                        max_pause = int(r.get('config:max_pause_time') or 64)
+                        pause_time = min(pause_time * 2, max_pause)
                     else:
                         print(f'[{plataforma}/{content_id}] BLOQUEADO (429)! Flag de circuit breaker desligada.')
                     i -= 1

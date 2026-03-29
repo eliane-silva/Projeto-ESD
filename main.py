@@ -152,6 +152,23 @@ def mudar_flags():
         r.set(FLAGS[op], 0)
 
 
+def configurar_teto():
+    atual = r.get('config:max_pause_time')
+    print(f"\nTeto atual do circuit breaker: {atual}s")
+
+    try:
+        novo = int(input("Novo valor em segundos: "))
+        if novo <= 0:
+            print("Valor deve ser maior que zero")
+            return
+    except ValueError:
+        print("Valor inválido")
+        return
+
+    r.set('config:max_pause_time', novo)
+    print(f"Teto atualizado para {novo}s")
+
+
 def menu():
     while True:
         print("\nEscolha:")
@@ -159,6 +176,7 @@ def menu():
         print("2 - Adicionar likes no Instagram")
         print("3 - Ver likes")
         print("4 - Mudar flags")
+        print("5 - Configurar teto do circuit breaker")
         print("0 - Sair")
 
         op = input("> ")
@@ -177,6 +195,10 @@ def menu():
             continue
         elif op == "4":
             mudar_flags()
+            input("Aperte 'Enter' para continuar...")
+            continue
+        elif op == "5":
+            configurar_teto()
             input("Aperte 'Enter' para continuar...")
             continue
         else:
@@ -214,6 +236,8 @@ def main():
 
     for flag in FLAGS:
         r.set(flag, 1)
+
+    r.set('config:max_pause_time', 64)
 
     menu()
 
