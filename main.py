@@ -131,9 +131,19 @@ def mudar_flags():
         print(f"{i} | {flag:<40} | {r.get(flag)}")
     print("0 | Sair")
 
-    op = int(input("Qual flag deseja alternar? "))
+    try:
+        op = int(input("Qual flag deseja alternar? "))
+    except ValueError: # tratamento de erros
+        print("Opção inválida")
+        return
+
     if op == 0:
         return
+
+    if op < 1 or op > len(FLAGS): # tratamento de erros
+        print("Opção inválida")
+        return
+
     op -= 1
 
     if r.get(FLAGS[op]) == "0":
