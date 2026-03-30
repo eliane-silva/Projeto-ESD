@@ -15,6 +15,22 @@ YOUTUBE_URL = "http://localhost:8001/api/youtube/get_likes"
 INSTAGRAM_URL = "http://localhost:8002/api/instagram/get_likes"
 
 
+def ler_int(mensagem, minimo=None):
+    valor_str = input(mensagem).strip()
+
+    try:
+        valor = int(valor_str)
+    except ValueError:
+        print("Número inválido")
+        return None
+
+    if minimo is not None and valor < minimo:
+        print(f"O valor deve ser maior ou igual a {minimo}")
+        return None
+
+    return valor
+
+
 def esperar_scheduler():
     url = "http://localhost:8000/docs"
 
@@ -205,10 +221,9 @@ def menu():
             print("Opção inválida")
             continue
 
-        try:
-            acoes = int(input("Quantas ações? "))
-        except:
-            print("Número inválido")
+        acoes = ler_int("Quantas ações? ", minimo=1)
+        if acoes is None:
+            input("Aperte 'Enter' para continuar...")
             continue
 
         content_id = escolher_content_id(plataforma)
@@ -221,10 +236,8 @@ def menu():
 
 
 def main():
-    try:
-        workers = int(input("Quantos workers você quer? "))
-    except:
-        print("Número inválido")
+    workers = ler_int("Quantos workers você quer? ", minimo=1)
+    if workers is None:
         return
 
     subir_docker(workers)
