@@ -5,9 +5,16 @@ import redis
 import random
 from urllib.parse import urlencode
 
-r = redis.from_url(os.getenv('REDIS_URL'), decode_responses=True)
-YOUTUBE_URL = os.getenv('YOUTUBE_URL')
-INSTAGRAM_URL = os.getenv('INSTAGRAM_URL')
+# Carregando variáveis do ambiente
+REDIS_URL = os.getenv('REDIS_URL')
+CIRCUIT_BREAKER_URL = f'{os.getenv("BASE_SCHEDULER_URL")}{os.getenv("GET_FLAG")}?flag={os.getenv("FLAG_CIRCUIT_BREAKER")}'
+JITTER_URL = f'{os.getenv("BASE_SCHEDULER_URL")}{os.getenv("GET_FLAG")}?flag={os.getenv("FLAG_JITTER")}'
+PAUSE_TIME_URL = f'{os.getenv("BASE_SCHEDULER_URL")}{os.getenv("SCHEDULER_GET_PAUSE_TIME")}'
+YOUTUBE_URL = os.getenv('BASE_YOUTUBE_URL') + os.getenv('YOUTUBE_LIKE_VIDEO')
+INSTAGRAM_URL = os.getenv('BASE_INSTAGRAM_URL') + os.getenv('INSTAGRAM_LIKE_VIDEO')
+
+
+r = redis.from_url(REDIS_URL, decode_responses=True)
 
 print('Worker iniciado. Escutando a fila no Redis...')
 
@@ -38,14 +45,14 @@ while True:
     with httpx.Client() as client:
         i = 0
         while i < acoes:
-            if circuit_open and r.get('flag:circuit_breaker') == '1':
+            if circuit_open and client.get(CIRCUIT_BREAKER_URL).text == '1':
                 print(f'[{plataforma}/{content_id}] CIRCUIT BREAKER ABERTO! Pausando por {pause_time}s...')
                 time.sleep(pause_time)
                 circuit_open = False
                 print(f'[{plataforma}/{content_id}] Tentando reconectar...')
 
             try:
-                if r.get('flag:jitter') == '1':
+                if client.get(CIRCUIT_BREAKER_URL).text == '1':
                     wait_time = min(
                         random.normalvariate(action_delay, deviation),
                         action_delay + deviation
@@ -64,10 +71,10 @@ while True:
                         rate_limit_changed = True
                         rate_limit /= 2
 
-                    if r.get('flag:circuit_breaker') == '1':
+                    if client.get(CIRCUIT_BREAKER_URL).text == '1':
                         print(f'[{plataforma}/{content_id}] BLOQUEADO (429)! Abrindo circuito.')
                         circuit_open = True
-                        max_pause = int(r.get('config:max_pause_time') or 64)
+                        max_pause = int(client.get(PAUSE_TIME_URL).text or 64)
                         pause_time = min(pause_time * 2, max_pause)
                     else:
                         print(f'[{plataforma}/{content_id}] BLOQUEADO (429)! Flag de circuit breaker desligada.')

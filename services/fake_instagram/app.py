@@ -1,21 +1,27 @@
 from fastapi import FastAPI, HTTPException, Request, Query
+import os
 import time
 
-app = FastAPI(title='Fake Instagram')
+# URLs da API
+INSTAGRAM_LIST_VIDEOS = os.getenv("INSTAGRAM_LIST_VIDEOS")
+INSTAGRAM_LIKE_VIDEO = os.getenv("INSTAGRAM_LIKE_VIDEO")
+INSTAGRAM_GET_LIKES = os.getenv("INSTAGRAM_GET_LIKES")
 
+# Parâmetros de throttling
 LIMIT = 120
 WINDOW = 1
 
-# 5 conteúdos fixos
+# Conteúdos da plataforma
 videos = {
     f'instagram_video_{i}': {'likes': 0}
     for i in range(1, 6)
 }
-
 requests_por_ip = {}
 
+app = FastAPI(title='Fake Instagram')
 
-@app.get('/api/instagram/videos')
+
+@app.get(INSTAGRAM_LIST_VIDEOS)
 def list_videos():
     return {
         'platform': 'instagram',
@@ -26,8 +32,8 @@ def list_videos():
     }
 
 
-@app.post('/api/instagram/like')
-def instagram_like(
+@app.post(INSTAGRAM_LIKE_VIDEO)
+def like_video(
     request: Request,
     video_id: str = Query(..., description='Identificador do conteúdo')
 ):
@@ -35,7 +41,8 @@ def instagram_like(
     now = time.time()
 
     if video_id not in videos:
-        raise HTTPException(status_code=404, detail='Instagram: conteúdo não encontrado')
+        raise HTTPException(
+            status_code=404, detail='Instagram: conteúdo não encontrado')
 
     if ip not in requests_por_ip:
         requests_por_ip[ip] = []
@@ -44,7 +51,8 @@ def instagram_like(
     current = len(requests_por_ip[ip])
 
     if current >= LIMIT:
-        raise HTTPException(status_code=429, detail='Instagram: Too Many Requests')
+        raise HTTPException(
+            status_code=429, detail='Instagram: Too Many Requests')
 
     requests_por_ip[ip].append(now)
     videos[video_id]['likes'] += 1
@@ -61,11 +69,12 @@ def instagram_like(
     }
 
 
-@app.get('/api/instagram/get_likes')
+@app.get(INSTAGRAM_GET_LIKES)
 def get_likes(video_id: str | None = None):
     if video_id is not None:
         if video_id not in videos:
-            raise HTTPException(status_code=404, detail='Instagram: conteúdo não encontrado')
+            raise HTTPException(
+                status_code=404, detail='Instagram: conteúdo não encontrado')
         return {
             'platform': 'instagram',
             'video_id': video_id,
