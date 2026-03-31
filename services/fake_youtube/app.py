@@ -3,9 +3,9 @@ import os
 import time
 
 # URLs da API
-YOUTUBE_LIST_VIDEOS = os.getenv("YOUTUBE_LIST_VIDEOS")
-YOUTUBE_LIKE_VIDEO = os.getenv("YOUTUBE_LIKE_VIDEO")
-YOUTUBE_GET_LIKES = os.getenv("YOUTUBE_GET_LIKES")
+YOUTUBE_LIST_VIDEOS = os.getenv('YOUTUBE_LIST_VIDEOS')
+YOUTUBE_LIKE_VIDEO = os.getenv('YOUTUBE_LIKE_VIDEO')
+YOUTUBE_GET_LIKES = os.getenv('YOUTUBE_GET_LIKES')
 
 # Parâmetros de throttling
 LIMIT = 1
