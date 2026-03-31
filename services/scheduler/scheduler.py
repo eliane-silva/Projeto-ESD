@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException
-import redis
 import os
 import requests
 import random
+import time
 
 # URLs da API
 SCHEDULER_CAMPAIGN = os.getenv('SCHEDULER_CAMPAIGN')
@@ -10,6 +10,8 @@ ALT_FLAG = os.getenv('ALT_FLAG')
 GET_FLAG = os.getenv('GET_FLAG')
 SCHEDULER_SET_PAUSE_TIME = os.getenv('SCHEDULER_SET_PAUSE_TIME')
 SCHEDULER_GET_PAUSE_TIME = os.getenv('SCHEDULER_GET_PAUSE_TIME')
+SCHEDULER_POST_CAMPAIGN_RESULT = os.getenv('SCHEDULER_POST_CAMPAIGN_RESULT')
+SCHEDULER_GET_CAMPAIGN = os.getenv('SCHEDULER_GET_CAMPAIGN')
 
 # Carregando variáveis do ambiente
 REDIS_URL = os.getenv('REDIS_URL')
@@ -20,14 +22,25 @@ FLAG_DYNAMIC_DISTRIBUTION = os.getenv('FLAG_DYNAMIC_DISTRIBUTION')
 FLAG_JITTER = os.getenv('FLAG_JITTER')
 FLAG_CIRCUIT_BREAKER = os.getenv('FLAG_CIRCUIT_BREAKER')
 
-
-r = redis.from_url(REDIS_URL, decode_responses=True)
-
 # Parâmetros do Scheduler
+VALID_CONTENT = {
+    'youtube': {video['video_id'] for video in requests.get(YOUTUBE_LIST_VIDEOS).json().get('videos')},
+    'instagram': {video['video_id'] for video in requests.get(INSTAGRAM_LIST_VIDEOS).json().get('videos')},
+}
 MAX_ALLOWED_RATE_LIMIT = 120
 MAX_LOCK_TIME = 120
-MAX_PAUSE_TIME = 64
-FLAGS = {
+
+campaigns_queue = []
+campaign_buffer = {
+    'youtube': [],
+    'instagram': []
+}
+campaign_lock = {
+    'youtube': {'lock': 0, 'time': 0},
+    'instagram': {'lock': 0, 'time': 0}
+}
+max_pause_time = 64
+flags = {
     FLAG_THRESHOLD: 1,
     FLAG_DYNAMIC_DISTRIBUTION: 1,
     FLAG_JITTER: 1,
@@ -48,12 +61,31 @@ rate_limits = {
     'instagram': MAX_ALLOWED_RATE_LIMIT / 2,
 }
 
-VALID_CONTENT = {
-    'youtube': {video['video_id'] for video in requests.get(YOUTUBE_LIST_VIDEOS).json().get('videos')},
-    'instagram': {video['video_id'] for video in requests.get(INSTAGRAM_LIST_VIDEOS).json().get('videos')},
-}
-
 app = FastAPI(title='Campaign Scheduler')
+
+
+def is_locked(platform):
+    if campaign_lock[platform]['lock'] == 0:
+        return False
+
+    elapsed = time.time() - campaign_lock[platform]['time']
+    if elapsed > MAX_LOCK_TIME:
+        campaign_lock[platform]['lock'] = 0
+        campaign_lock[platform]['time'] = 0
+        return False
+
+    return True
+
+
+def unlock(platform):
+    campaign_lock[platform]['lock'] = 0
+    campaign_lock[platform]['time'] = 0
+
+
+def lock(platform):
+    if not is_locked(platform):
+        campaign_lock[platform]['lock'] = 1
+        campaign_lock[platform]['time'] = time.time()
 
 
 @app.post(SCHEDULER_CAMPAIGN)
@@ -65,23 +97,20 @@ def post_campaign(platform: str, actions: int, content_id: str):
         raise HTTPException(
             status_code=400, detail='Conteúdo inválido para a plataforma')
 
-    lock_key = f'lock:{platform}'
-    buffer_key = f'buffer:{platform}'
-
     tested_rate_limit = rate_limits[platform]
     rate_limit = min(MAX_ALLOWED_RATE_LIMIT, tested_rate_limit)
     campanha_str = f'{platform}:{actions}:{rate_limit}:{content_id}'
 
-    acquired = r.set(lock_key, 1, nx=True, ex=MAX_LOCK_TIME)
-    if acquired:
-        r.lpush('fila_campanhas', campanha_str)
+    if not is_locked(platform):
+        lock(platform)
+        campaigns_queue.append(campanha_str)
         return {
             'message': f'Campanha para {platform} adicionada à fila com {actions} ações.',
             'content_id': content_id,
             'rate_limit': rate_limit
         }
     else:
-        r.rpush(buffer_key, campanha_str)
+        campaign_buffer[platform].append(campanha_str)
         return {
             'message': f'Campanha para {platform} guardada no buffer.',
             'content_id': content_id,
@@ -91,92 +120,93 @@ def post_campaign(platform: str, actions: int, content_id: str):
 
 @app.post(ALT_FLAG)
 def alt_flag(flag: str):
-    FLAGS[flag] = 1 - FLAGS[flag]
+    flags[flag] = 1 - flags[flag]
 
 
 @app.get(GET_FLAG)
 def get_flag(flag: str):
-    return FLAGS[flag]
+    return flags[flag]
 
 
 @app.post(SCHEDULER_SET_PAUSE_TIME)
 def set_pause_time(time: int):
-    global MAX_PAUSE_TIME
-    MAX_PAUSE_TIME = time
+    global max_pause_time
+    max_pause_time = time
 
 
 @app.get(SCHEDULER_GET_PAUSE_TIME)
 def get_pause_time():
-    return MAX_PAUSE_TIME
+    return max_pause_time
 
 
-@app.post('/pass')
 def increase_rate_limit(platform: str, approved_rate_limit: int):
-    if FLAGS[FLAG_THRESHOLD] == 1:
-        if approved_rate_limit < max_rate_limits[platform]:
-            safer_rate_limits[platform] = approved_rate_limit
-            rate_limits[platform] = int(
-                approved_rate_limit +
-                (max_rate_limits[platform] - approved_rate_limit) / 2
-            )
-        print(
-            f'[{platform}] Velocidade atual aumentada para {rate_limits[platform]}.')
-    else:
-        print(f'[{platform}] Flag de threshold desligada.')
+    if approved_rate_limit < max_rate_limits[platform]:
+        safer_rate_limits[platform] = approved_rate_limit
+        new_rate_limit = int(
+            approved_rate_limit + (max_rate_limits[platform] - approved_rate_limit) / 2)
+        new_rate_limit = max(new_rate_limit, approved_rate_limit + 1)
+        rate_limits[platform] = new_rate_limit
+    print(f'[{platform}] Velocidade atual aumentada para {rate_limits[platform]}.')
 
 
-@app.post('/throttle')
 def decrease_rate_limit(platform: str, rejected_rate_limit: int):
-    if FLAGS[FLAG_THRESHOLD] == 1:
-        max_rate_limits[platform] = rejected_rate_limit
-        if safer_rate_limits[platform] >= rejected_rate_limit:
-            safer_rate_limits[platform] = rejected_rate_limit / 2
-        rate_limits[platform] = int(
-            rejected_rate_limit -
-            (rejected_rate_limit - safer_rate_limits[platform]) / 2
-        )
-        print(f'[{platform}] Velocidade atual reduzida para {rate_limits[platform]}.')
+    max_rate_limits[platform] = rejected_rate_limit
+    if safer_rate_limits[platform] >= rejected_rate_limit:
+        safer_rate_limits[platform] = rejected_rate_limit / 2
+    new_rate_limit = int(
+        rejected_rate_limit - (rejected_rate_limit - safer_rate_limits[platform]) / 2)
+    new_rate_limit = min(new_rate_limit, rejected_rate_limit - 1)
+    rate_limits[platform] = new_rate_limit
+    print(f'[{platform}] Velocidade atual reduzida para {rate_limits[platform]}.')
+
+
+@app.post(SCHEDULER_POST_CAMPAIGN_RESULT)
+def post_campaign_result(
+    platform: str,
+    rate_limit: int,
+    approved: int
+):
+    if flags[FLAG_THRESHOLD] == 1:
+        if approved == 1:
+            increase_rate_limit(platform, rate_limit)
+        elif approved == 0:
+            decrease_rate_limit(platform, rate_limit)
     else:
         print(f'[{platform}] Flag de threshold desligada.')
 
+    unlock(platform)
 
-@app.post('/unlock')
-def unlock_platform(platform: str):
-    lock_key = f'lock:{platform}'
-    r.delete(lock_key)
 
-    if r.llen('fila_campanhas') == 0:
-        if FLAGS[FLAG_DYNAMIC_DISTRIBUTION] == 1:
-            possible_platforms = {}
+@app.get(SCHEDULER_GET_CAMPAIGN)
+def get_campaign():
+    if len(campaigns_queue) == 0:
+        possible_platforms = {}
 
-            for plat in rate_limits.keys():
-                buffer_key = f'buffer:{plat}'
-                lock_key = f'lock:{plat}'
-                if r.llen(buffer_key) > 0 and r.get(lock_key) is None:
-                    possible_platforms[plat] = rate_limits[plat]
+        for plat in rate_limits.keys():
+            if len(campaign_buffer[plat]) > 0 and not is_locked(plat):
+                possible_platforms[plat] = rate_limits[plat]
 
-            weights = []
-            if possible_platforms:
-                plats = list(possible_platforms.keys())
+        if possible_platforms:
+            plats = list(possible_platforms.keys())
+
+            if flags[FLAG_DYNAMIC_DISTRIBUTION] == 0:
+                platform = random.choice(plats)
+                print(f'Flag de dynamic distribution desligada.')
+                print(f'Uma campanha para [{platform}] foi escolhida de forma aleatória.')
+            else:
                 weights = list(possible_platforms.values())
                 platform = random.choices(plats, weights=weights, k=1)[0]
+                print(f'Uma campanha para [{platform}] foi escolhida com base nos pesos {possible_platforms}')
 
-            if weights:
-                print(
-                    f'Uma campanha para [{platform}] foi escolhida com base nos pesos {possible_platforms}')
+            campaign = campaign_buffer[platform].pop(0)
+            lock(platform)
+            return campaign
         else:
-            print(f'[{platform}] Flag de dynamic distribution desligada.')
+            print('Não existem campanhas em nenhum buffer.')
 
-        lock_key = f'lock:{platform}'
-        buffer_key = f'buffer:{platform}'
-        next_campanha = r.lpop(buffer_key)
-        if next_campanha:
-            _, actions, _, content_id = next_campanha.split(':', 3)
-            tested_rate_limit = rate_limits[platform]
-            rate_limit = min(MAX_ALLOWED_RATE_LIMIT, tested_rate_limit)
-            campanha_str = f'{platform}:{actions}:{rate_limit}:{content_id}'
-
-            r.set(lock_key, '1', nx=True, ex=MAX_LOCK_TIME)
-            r.lpush('fila_campanhas', campanha_str)
-            print(
-                f'[{platform}] Campanha do buffer movida para a fila para {content_id}')
+    if len(campaigns_queue) > 0:
+        campaign = campaigns_queue.pop(0)
+        platform, _, _, _ = campaign.split(':')
+        lock(platform)
+        return campaign
+    return None
