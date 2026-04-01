@@ -15,3 +15,13 @@ def register_action(platform: str, status: str, content_id: str):
     db.commit()
     db.close()
     return {"ok": True}
+
+
+@app.post("/event")
+def register_event(platform: str, type: str):
+    db = SessionLocal()
+    event = Event(platform=platform, type=type)
+    db.add(event)
+    db.commit()
+    db.close()
+    return {"ok": True}
