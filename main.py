@@ -22,6 +22,7 @@ YOUTUBE_LIST_VIDEOS = os.getenv('YOUTUBE_LIST_VIDEOS')
 YOUTUBE_GET_LIKES = os.getenv('YOUTUBE_GET_LIKES')
 INSTAGRAM_LIST_VIDEOS = os.getenv('INSTAGRAM_LIST_VIDEOS')
 INSTAGRAM_GET_LIKES = os.getenv('INSTAGRAM_GET_LIKES')
+TEMPLATE_METRICS_URL = os.getenv('METRICS_URL')
 
 
 # Funções de preparação do ambiente
@@ -198,6 +199,28 @@ def configurar_teto():
     requests.post(f'{SCHEDULER_SET_PAUSE_TIME}?time={novo}')
     print(f'Teto atualizado para {novo}s')
 
+def ver_metricas():
+    plataformas = ['youtube', 'instagram']
+    print()
+    
+    for plataforma in plataformas:
+        try:
+            response = requests.get(TEMPLATE_METRICS_URL.format(plataforma=plataforma))
+            if response.status_code == 200:
+                data = response.json()
+                print(f"\nMétricas para {plataforma.capitalize()}:")
+                print(f"Total de ações: {data['total']}")
+                print(f"Ações bem-sucedidas: {data['success']}")
+                print(f"Ações com erro: {data['errors']}")
+                print(f"Ações bloqueadas: {data['blocked']}")
+                print(f"Taxa de sucesso: {data['success_rate']:.2%}")
+                print(f"Taxa de erro: {data['error_rate']:.2%}")
+                print(f"Taxa de bloqueio: {data['block_rate']:.2%}\n")
+            else:
+                print('Erro ao buscar métricas:', response.text)
+        except Exception as e:
+            print('Erro ao conectar com o serviço de monitoramento:', e)
+
 
 # Menu principal
 def menu():
@@ -208,6 +231,7 @@ def menu():
         print('3 - Ver likes')
         print('4 - Mudar flags')
         print('5 - Configurar teto do circuit breaker')
+        print('6 - Ver métricas de monitoramento (banco de dados)')
         print('0 - Sair')
 
         op = input('> ')
@@ -234,6 +258,10 @@ def menu():
             continue
         elif op == '5':
             configurar_teto()
+            input('Aperte "Enter" para continuar...')
+            continue
+        elif op == '6':
+            ver_metricas()
             input('Aperte "Enter" para continuar...')
             continue
         else:
