@@ -25,3 +25,37 @@ def register_event(platform: str, type: str):
     db.commit()
     db.close()
     return {"ok": True}
+
+@app.get("/metrics/{platform}")
+def get_metrics(platform: str):
+    db = SessionLocal()
+
+    total = db.query(Action).filter(Action.platform == platform).count()
+
+    success = db.query(Action).filter(
+        Action.platform == platform,
+        Action.status == "success"
+    ).count()
+
+    errors = db.query(Action).filter(
+        Action.platform == platform,
+        Action.status == "error"
+    ).count()
+
+    blocked = db.query(Action).filter(
+        Action.platform == platform,
+        Action.status == "blocked"
+    ).count()
+
+    db.close()
+
+    return {
+        "platform": platform,
+        "total": total,
+        "success": success,
+        "errors": errors,
+        "blocked": blocked,
+        "success_rate": success / total if total > 0 else 0,
+        "error_rate": errors / total if total > 0 else 0,
+        "block_rate": blocked / total if total > 0 else 0
+    }
