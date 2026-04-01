@@ -21,6 +21,7 @@ FLAG_THRESHOLD = os.getenv('FLAG_THRESHOLD')
 FLAG_DYNAMIC_DISTRIBUTION = os.getenv('FLAG_DYNAMIC_DISTRIBUTION')
 FLAG_JITTER = os.getenv('FLAG_JITTER')
 FLAG_CIRCUIT_BREAKER = os.getenv('FLAG_CIRCUIT_BREAKER')
+EVENT_URL = os.getenv('MONITORING_EVENT_URL')
 
 # Parâmetros do Scheduler
 VALID_CONTENT = {
@@ -63,6 +64,20 @@ rate_limits = {
 
 app = FastAPI(title='Campaign Scheduler')
 
+
+class EnumLogStatus:
+    RATE_INCREASE = 'RATE_INCREASE'
+    RATE_DECREASE = 'RATE_DECREASE'
+
+def log_action(platform, status):
+    requests.post(
+        EVENT_URL,
+        params={
+            'platform': platform,
+            'type': status
+        },
+        timeout=2
+    )
 
 def is_locked(platform):
     if campaign_lock[platform]['lock'] == 0:
@@ -146,6 +161,9 @@ def increase_rate_limit(platform: str, approved_rate_limit: int):
             approved_rate_limit + (max_rate_limits[platform] - approved_rate_limit) / 2)
         new_rate_limit = max(new_rate_limit, approved_rate_limit + 1)
         rate_limits[platform] = new_rate_limit
+
+
+    log_action(platform, EnumLogStatus.RATE_INCREASE)
     print(f'[{platform}] Velocidade atual aumentada para {rate_limits[platform]}.')
 
 
@@ -157,6 +175,8 @@ def decrease_rate_limit(platform: str, rejected_rate_limit: int):
         rejected_rate_limit - (rejected_rate_limit - safer_rate_limits[platform]) / 2)
     new_rate_limit = min(new_rate_limit, rejected_rate_limit - 1)
     rate_limits[platform] = new_rate_limit
+
+    log_action(platform, EnumLogStatus.RATE_DECREASE)
     print(f'[{platform}] Velocidade atual reduzida para {rate_limits[platform]}.')
 
 
