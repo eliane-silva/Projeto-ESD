@@ -34,4 +34,12 @@ services:
       - scheduler
       - fake_youtube
       - fake_instagram
+      - monitoring
     command: python -u worker.py
+
+  monitoring:
+    build: ./services/monitoring
+    ports:
+      - "8003:8000"
+    env_file:
+      - .env.docker
