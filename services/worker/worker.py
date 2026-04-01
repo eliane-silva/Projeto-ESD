@@ -12,6 +12,51 @@ JITTER_URL = f'{os.getenv("BASE_SCHEDULER_URL")}{os.getenv("GET_FLAG")}?flag={os
 PAUSE_TIME_URL = f'{os.getenv("BASE_SCHEDULER_URL")}{os.getenv("SCHEDULER_GET_PAUSE_TIME")}'
 YOUTUBE_URL = os.getenv('BASE_YOUTUBE_URL') + os.getenv('YOUTUBE_LIKE_VIDEO')
 INSTAGRAM_URL = os.getenv('BASE_INSTAGRAM_URL') + os.getenv('INSTAGRAM_LIKE_VIDEO')
+MONITORING_URL = os.getenv('MONITORING_URL')
+EVENT_URL = os.getenv('MONITORING_EVENT_URL')
+
+class EnumLogStatus:
+    SUCCESS = 'success'
+    BLOCK = 'block'
+
+def log_action(plataforma, content_id, status=None):
+    if status == EnumLogStatus.SUCCESS:
+        requests.post(
+            MONITORING_URL,
+            params={
+                'platform': plataforma,
+                'status': 'success',
+                'content_id': content_id
+            }
+        )
+
+    elif status == EnumLogStatus.BLOCK:
+        requests.post(
+            EVENT_URL,
+            params={
+                'platform': plataforma,
+                'type': 'BLOCK'
+            }
+        )
+
+        requests.post(
+            MONITORING_URL,
+            params={
+                'platform': plataforma,
+                'status': 'blocked',
+                'content_id': content_id
+            }
+        )
+
+    else:
+        requests.post(
+            MONITORING_URL,
+            params={
+                'platform': plataforma,
+                'status': 'error',
+                'content_id': content_id
+            }
+        )
 
 
 print('Aguardando scheduler iniciar...')
@@ -80,8 +125,10 @@ while True:
 
             if response.status_code == 200:
                 print(f'[{plataforma}/{content_id}] Ação {i+1} OK')
+                log_action(plataforma, content_id, EnumLogStatus.SUCCESS)
                 pause_time = 1
             elif response.status_code == 429:
+                log_action(plataforma, content_id, EnumLogStatus.BLOCK)
                 if not rate_limit_changed:
                     rate_limit_changed = True
                     rate_limit /= 2
@@ -97,6 +144,7 @@ while True:
                         f'[{plataforma}/{content_id}] BLOQUEADO (429)! Flag de circuit breaker desligada.')
                 i -= 1
             else:
+                log_action(plataforma, content_id)
                 print(
                     f'[{plataforma}/{content_id}] Resposta inesperada: {response.status_code} - {response.text}')
         except Exception as e:
