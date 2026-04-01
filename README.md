@@ -46,3 +46,19 @@ Link da Documentação Inicial do Projeto: https://docs.google.com/document/d/1q
 Link do Diagrama C4 - Nível 1 (Contexto): https://drive.google.com/file/d/1ptPmmlbnPzUPDDdBu9U-E_5rn349GY2A/view?usp=sharing
 
 Link do Diagrama C4 - Nível 2 (Containers): https://drive.google.com/file/d/1U_S4vCzgNvAlUYHgqLXuLLVIlnIeVXIy/view?usp=sharing
+
+## Como rodar o projeto
+
+1. Abra o terminal na pasta do projeto.
+
+2. Execute:
+python main.py
+
+3. Informe quantos workers deseja iniciar.
+
+4. Use o menu exibido no terminal para:
+- Adicionar likes no YouTube
+- Adicionar likes no Instagram
+- Ver os likes
+- Ativar ou desativar flags
+- Configurar teto do circuit breaker
