@@ -4,16 +4,16 @@ services:
     ports:
       - "6379:6379"
 
-  fake_youtube:
-    build: ./services/fake_youtube
+  mock_youtube:
+    build: ./services/mock_youtube
     env_file:
       - .env.docker
     ports:
       - "8001:8000"
     command: python -u -m uvicorn app:app --host 0.0.0.0 --port 8000
 
-  fake_instagram:
-    build: ./services/fake_instagram
+  mock_instagram:
+    build: ./services/mock_instagram
     env_file:
       - .env.docker
     ports:
@@ -28,8 +28,8 @@ services:
       - .env.docker
     depends_on:
       - redis
-      - fake_youtube
-      - fake_instagram
+      - mock_youtube
+      - mock_instagram
     command: python -u -m uvicorn scheduler:app --host 0.0.0.0 --port 8000
 
   worker:
@@ -39,8 +39,8 @@ services:
     depends_on:
       - redis
       - scheduler
-      - fake_youtube
-      - fake_instagram
+      - mock_youtube
+      - mock_instagram
       - monitoring
     command: python -u worker.py
 
