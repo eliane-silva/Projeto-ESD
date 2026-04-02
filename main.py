@@ -206,18 +206,43 @@ def ver_metricas():
     for plataforma in plataformas:
         try:
             response = requests.get(TEMPLATE_METRICS_URL.format(plataforma=plataforma))
+            
             if response.status_code == 200:
                 data = response.json()
-                print(f"\nMétricas para {plataforma.capitalize()}:")
+
+                print(f"\n📊 Métricas para {plataforma.capitalize()}:")
+
+                # ações
                 print(f"Total de ações: {data['total']}")
                 print(f"Ações bem-sucedidas: {data['success']}")
                 print(f"Ações com erro: {data['errors']}")
                 print(f"Ações bloqueadas: {data['blocked']}")
+
+                # taxas
                 print(f"Taxa de sucesso: {data['success_rate']:.2%}")
                 print(f"Taxa de erro: {data['error_rate']:.2%}")
-                print(f"Taxa de bloqueio: {data['block_rate']:.2%}\n")
+                print(f"Taxa de bloqueio: {data['block_rate']:.2%}")
+
+                # eventos
+                eventos = data.get('events', {})
+                print("\n⚙️ Eventos:")
+                print(f"Bloqueios detectados: {eventos.get('block_events', 0)}")
+                print(f"Aumentos de taxa: {eventos.get('rate_increase', 0)}")
+                print(f"Reduções de taxa: {eventos.get('rate_decrease', 0)}")
+
+                # valor negativo -> sistema saudável
+                # valor próximo de zero -> sistema equilibrado
+                # valor positivo -> sistema instável (muitos bloqueios)
+                stability = eventos.get('rate_decrease', 0) - eventos.get('rate_increase', 0)
+                print(f"Indicador de instabilidade: {stability}")
+
+                print()
+                if plataforma == 'youtube': 
+                    print("-" * 40)
+
             else:
                 print('Erro ao buscar métricas:', response.text)
+
         except Exception as e:
             print('Erro ao conectar com o serviço de monitoramento:', e)
 

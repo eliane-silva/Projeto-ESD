@@ -47,15 +47,41 @@ def get_metrics(platform: str):
         Action.status == "blocked"
     ).count()
 
+    block_events = db.query(Event).filter(
+        Event.platform == platform,
+        Event.type == "BLOCK"
+    ).count()
+
+    rate_increase = db.query(Event).filter(
+        Event.platform == platform,
+        Event.type == "RATE_INCREASE"
+    ).count()
+
+    rate_decrease = db.query(Event).filter(
+        Event.platform == platform,
+        Event.type == "RATE_DECREASE"
+    ).count()
+
     db.close()
 
     return {
         "platform": platform,
+
+        # actions
         "total": total,
         "success": success,
         "errors": errors,
         "blocked": blocked,
+
+        # rates
         "success_rate": success / total if total > 0 else 0,
         "error_rate": errors / total if total > 0 else 0,
-        "block_rate": blocked / total if total > 0 else 0
+        "block_rate": blocked / total if total > 0 else 0,
+
+        # events
+        "events": {
+            "block_events": block_events,
+            "rate_increase": rate_increase,
+            "rate_decrease": rate_decrease
+        }
     }
