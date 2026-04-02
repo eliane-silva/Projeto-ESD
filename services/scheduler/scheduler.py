@@ -4,7 +4,7 @@ import os
 import random
 
 app = FastAPI(title='Campaign Scheduler')
-r = redis.from_url(os.getenv('REDIS_URL'), decode_responses=True)
+r = redis.from_url(os.getenv('REDIS_URL', 'redis://localhost:6379/0'), decode_responses=True)
 
 MAX_ALLOWED_RATE_LIMIT = 120
 MAX_LOCK_TIME = 120

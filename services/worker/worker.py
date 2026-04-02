@@ -3,16 +3,26 @@ import time
 import httpx
 import redis
 import random
+import redis.exceptions
 from urllib.parse import urlencode
 
-r = redis.from_url(os.getenv('REDIS_URL'), decode_responses=True)
+r = redis.from_url(os.getenv('REDIS_URL', 'redis://localhost:6379/0'), decode_responses=True)
 YOUTUBE_URL = os.getenv('YOUTUBE_URL')
 INSTAGRAM_URL = os.getenv('INSTAGRAM_URL')
 
 print('Worker iniciado. Escutando a fila no Redis...')
 
 while True:
-    tarefa = r.brpop('fila_campanhas', timeout=5)
+    try:
+        tarefa = r.brpop('fila_campanhas', timeout=5)
+    except redis.exceptions.ConnectionError:
+        print("\n[WORKER] Conexão com o Redis perdida! Tentando reconectar em 5s...")
+        time.sleep(5)
+        continue
+    except Exception as e:
+        print(f"\n[WORKER] Erro inesperado ao acessar o Redis: {e}")
+        time.sleep(5)
+        continue
 
     if not tarefa:
         continue
