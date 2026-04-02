@@ -50,3 +50,13 @@ services:
       - "8003:8000"
     env_file:
       - .env.docker
+
+  frontend:
+    build: ./services/frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - scheduler
+      - mock_youtube
+      - mock_instagram
+      - monitoring

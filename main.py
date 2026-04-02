@@ -1,318 +1,83 @@
 import os
 import subprocess
-import requests
-import redis
+import sys
 import time
+import webbrowser
+
+import requests
 from dotenv import load_dotenv
 
-
-# Carregando variáveis do ambiente
 load_dotenv()
 
-from config import settings
-
-# Carregando variáveis do ambiente (Pydantic-settings cuida disso automaticamente,
-# mas mantemos o load_dotenv se houver variáveis externas ao Settings)
-load_dotenv()
-
-FLAGS = [
-    settings.flag_threshold,
-    settings.flag_dynamic_distribution,
-    settings.flag_jitter,
-    settings.flag_circuit_breaker
-]
+SCHEDULER_HOME = os.getenv('SCHEDULER_HOME')
+FRONTEND_URL = 'http://localhost:5173'
 
 
-# Funções de preparação do ambiente
-def subir_docker(total_de_workers):
-    print('\nParando containers antigos...')
-
-    subprocess.run(
-        ['docker', 'compose', 'down'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-
-    print(f'Subindo sistema com {total_de_workers} workers...')
-
-    subprocess.Popen(
-        ['docker', 'compose', 'up', '--build',
-            '--scale', f'worker={total_de_workers}'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-
-
-def esperar_scheduler():
-    print('Aguardando serviços iniciarem...')
-
-    while True:
-        try:
-            res = requests.get(settings.scheduler_home_url)
-            if res.status_code == 200:
-                print('Serviços iniciados com sucesso.\n')
-                break
-        except:
-            pass
-
-        time.sleep(1)
-
-
-# Funções do menu principal
 def ler_int(mensagem, minimo=None):
     valor_str = input(mensagem).strip()
-
     try:
         valor = int(valor_str)
     except ValueError:
         print('Número inválido')
         return None
-
     if minimo is not None and valor < minimo:
         print(f'O valor deve ser maior ou igual a {minimo}')
         return None
-
     return valor
 
 
-def enviar_campanha(plataforma):
-    def escolher_content_id(plataforma):
-        if plataforma == 'youtube':
-            videos = requests.get(settings.youtube_list_url).json().get('videos')
-        elif plataforma == 'instagram':
-            videos = requests.get(settings.instagram_list_url).json().get('videos')
+def subir_docker(total_de_workers):
+    print('\nParando containers antigos...')
+    subprocess.run(
+        ['docker', 'compose', 'down'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
-        video_ids = [video['video_id'] for video in videos]
-
-        print('\nEscolha o conteúdo:')
-        for i, video_id in enumerate(video_ids, 1):
-            print(f'{i} - {video_id}')
-
-        op = input('> ')
-
-        try:
-            op = int(op)
-            if 1 <= op <= 5:
-                return video_ids[op - 1]
-        except:
-            pass
-
-        print('Conteúdo inválido')
-        return None
-
-    acoes = ler_int('Quantas ações? ', minimo=1)
-    if acoes is None:
-        return
-
-    content_id = escolher_content_id(plataforma)
-    if content_id is None:
-        return
-
-    params = {
-        'platform': plataforma,
-        'actions': acoes,
-        'content_id': content_id
-    }
-
-    response = requests.post(settings.scheduler_campaign_url, params=params)
-
-    if response.status_code == 200:
-        print(f'\nCampanha enviada: {plataforma} ({acoes} ações)')
-        print(f'Conteúdo: {content_id}')
-        print(f'Resposta: {response.text}\n')
-    else:
-        print('Erro ao enviar campanha:', response.text)
+    print(f'Subindo sistema com {total_de_workers} worker(s)...')
+    subprocess.Popen(
+        ['docker', 'compose', 'up', '--build', '--scale', f'worker={total_de_workers}'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
-def ver_likes():
-    try:
-        r_youtube = requests.get(settings.youtube_likes_url)
-        r_instagram = requests.get(settings.instagram_likes_url)
-
-        data_youtube = r_youtube.json()
-        data_instagram = r_instagram.json()
-
-        total_youtube = data_youtube.get('total_likes', 0)
-        total_instagram = data_instagram.get('total_likes', 0)
-
-        videos_youtube = data_youtube.get('videos', {})
-        videos_instagram = data_instagram.get('videos', {})
-
-        print('\n=== TOTAL DE LIKES ===')
-        print(f'YouTube:   {total_youtube}')
-        print(f'Instagram: {total_instagram}')
-        print('======================')
-
-        print('\n--- YouTube por vídeo ---')
-        for video_id, likes in videos_youtube.items():
-            print(f'{video_id}: {likes}')
-
-        print('\n--- Instagram por vídeo ---')
-        for video_id, likes in videos_instagram.items():
-            print(f'{video_id}: {likes}')
-
-        print()
-
-    except Exception as e:
-        print('Erro ao buscar likes:', e)
-
-
-def mudar_flags():
-    print('\n')
-    for i, flag in enumerate(FLAGS, 1):
-        print(f'{i} | {flag:<40} | {r.get(f"flag:{flag}")}')
-    print('0 | Sair')
-
-    try:
-        op = int(input('Qual flag deseja alternar? '))
-    except ValueError:
-        print('Opção inválida')
-        return
-
-    if op == 0:
-        return
-
-    if op < 1 or op > len(FLAGS):
-        print('Opção inválida')
-        return
-
-    op -= 1
-
-    if r.get(f'flag:{FLAGS[op]}') == '0':
-        r.set(f'flag:{FLAGS[op]}', 1)
-    else:
-        r.set(f'flag:{FLAGS[op]}', 0)
-
-
-def configurar_teto():
-    atual = r.get('config:max_pause_time')
-    print(f'\nTeto atual do circuit breaker: {atual}s')
-
-    try:
-        novo = int(input('Novo valor em segundos: '))
-        if novo <= 0:
-            print('Valor deve ser maior que zero')
-            return
-    except ValueError:
-        print('Valor inválido')
-        return
-
-    r.set('config:max_pause_time', novo)
-    print(f'Teto atualizado para {novo}s')
-
-def ver_metricas():
-    plataformas = ['youtube', 'instagram']
-    print()
-    
-    for plataforma in plataformas:
-        try:
-            response = requests.get(settings.metrics_url_template.format(plataforma=plataforma))
-            
-            if response.status_code == 200:
-                data = response.json()
-
-                print(f"\n📊 Métricas para {plataforma.capitalize()}:")
-
-                # ações
-                print(f"Total de ações: {data['total']}")
-                print(f"Ações bem-sucedidas: {data['success']}")
-                print(f"Ações com erro: {data['errors']}")
-                print(f"Ações bloqueadas: {data['blocked']}")
-
-                # taxas
-                print(f"Taxa de sucesso: {data['success_rate']:.2%}")
-                print(f"Taxa de erro: {data['error_rate']:.2%}")
-                print(f"Taxa de bloqueio: {data['block_rate']:.2%}")
-
-                # eventos
-                eventos = data.get('events', {})
-                print("\n⚙️ Eventos:")
-                print(f"Bloqueios detectados: {eventos.get('block_events', 0)}")
-                print(f"Aumentos de taxa: {eventos.get('rate_increase', 0)}")
-                print(f"Reduções de taxa: {eventos.get('rate_decrease', 0)}")
-
-                # valor negativo -> sistema saudável
-                # valor próximo de zero -> sistema equilibrado
-                # valor positivo -> sistema instável (muitos bloqueios)
-                stability = eventos.get('rate_decrease', 0) - eventos.get('rate_increase', 0)
-                print(f"Indicador de instabilidade: {stability}")
-
-                print()
-                if plataforma == 'youtube': 
-                    print("-" * 40)
-
-            else:
-                print('Erro ao buscar métricas:', response.text)
-
-        except Exception as e:
-            print('Erro ao conectar com o serviço de monitoramento:', e)
-
-
-# Menu principal
-def menu():
+def esperar_servicos():
+    print('Aguardando serviços iniciarem...', end='', flush=True)
     while True:
-        print('\nEscolha:')
-        print('1 - Adicionar likes no YouTube')
-        print('2 - Adicionar likes no Instagram')
-        print('3 - Ver likes')
-        print('4 - Mudar flags')
-        print('5 - Configurar teto do circuit breaker')
-        print('6 - Ver métricas de monitoramento (banco de dados)')
-        print('0 - Sair')
-
-        op = input('> ')
-
-        if op == '0':
-            print('Encerrando...')
-            break
-
-        if op == '1':
-            plataforma = 'youtube'
-            enviar_campanha(plataforma)
-            input('Aperte "Enter" para continuar...')
-        elif op == '2':
-            plataforma = 'instagram'
-            enviar_campanha(plataforma)
-            input('Aperte "Enter" para continuar...')
-        elif op == '3':
-            ver_likes()
-            input('Aperte "Enter" para continuar...')
-            continue
-        elif op == '4':
-            mudar_flags()
-            input('Aperte "Enter" para continuar...')
-            continue
-        elif op == '5':
-            configurar_teto()
-            input('Aperte "Enter" para continuar...')
-            continue
-        elif op == '6':
-            ver_metricas()
-            input('Aperte "Enter" para continuar...')
-            continue
-        else:
-            print('Opção inválida')
-            continue
+        try:
+            if requests.get(SCHEDULER_HOME, timeout=2).status_code == 200:
+                print(' OK')
+                return
+        except Exception:
+            pass
+        print('.', end='', flush=True)
+        time.sleep(2)
 
 
-# Corpo principal do programa
 def main():
     workers = ler_int('Quantos workers você quer? ', minimo=1)
     if workers is None:
         return
 
     subir_docker(workers)
-    esperar_scheduler()
+    esperar_servicos()
 
-    global r
-    r = redis.from_url(settings.redis_url, decode_responses=True)
-    time.sleep(1)
+    print(f'\nAbrindo frontend em {FRONTEND_URL}')
+    webbrowser.open(FRONTEND_URL)
 
-    for flag in FLAGS:
-        r.set(f'flag:{flag}', 1)
-    r.set('config:max_pause_time', 64)
-
-    menu()
+    print('Frontend aberto no navegador. Pressione Ctrl+C para derrubar o sistema.\n')
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print('\nDerrubando containers...')
+        subprocess.run(
+            ['docker', 'compose', 'down'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print('Sistema encerrado.')
 
 
 if __name__ == '__main__':

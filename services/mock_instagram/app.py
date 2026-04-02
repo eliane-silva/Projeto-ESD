@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi.middleware.cors import CORSMiddleware
+import os
 import time
 from config import settings
 
@@ -14,6 +16,7 @@ videos = {
 requests_por_ip = {}
 
 app = FastAPI(title='Fake Instagram')
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 @app.get(settings.instagram_list_videos)
