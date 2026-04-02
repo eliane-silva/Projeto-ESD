@@ -59,6 +59,12 @@ python main.py
 4. Use o menu exibido no terminal para:
 - Adicionar likes no YouTube
 - Adicionar likes no Instagram
-- Ver os likes
-- Ativar ou desativar flags
+- Ver likes
+- Mudar flags
 - Configurar teto do circuit breaker
+- Ver métricas de monitoramento (banco de dados)
+- Sair da aplicação
+
+## Videocast
+
+Link do videocast: 
