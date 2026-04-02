@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from contextlib import asynccontextmanager
 import redis
 import os
 import requests
@@ -6,32 +7,55 @@ import random
 import time
 
 # URLs da API
-SCHEDULER_CAMPAIGN = os.getenv('SCHEDULER_CAMPAIGN')
-ALT_FLAG = os.getenv('ALT_FLAG')
-GET_FLAG = os.getenv('GET_FLAG')
-SCHEDULER_SET_PAUSE_TIME = os.getenv('SCHEDULER_SET_PAUSE_TIME')
-SCHEDULER_GET_PAUSE_TIME = os.getenv('SCHEDULER_GET_PAUSE_TIME')
-SCHEDULER_POST_CAMPAIGN_RESULT = os.getenv('SCHEDULER_POST_CAMPAIGN_RESULT')
-SCHEDULER_GET_CAMPAIGN = os.getenv('SCHEDULER_GET_CAMPAIGN')
+SCHEDULER_CAMPAIGN = os.getenv('SCHEDULER_CAMPAIGN', '/start_campaign')
+ALT_FLAG = os.getenv('ALT_FLAG', '/alt_flag')
+GET_FLAG = os.getenv('GET_FLAG', '/get_flag')
+SCHEDULER_SET_PAUSE_TIME = os.getenv('SCHEDULER_SET_PAUSE_TIME', '/set_pause_time')
+SCHEDULER_GET_PAUSE_TIME = os.getenv('SCHEDULER_GET_PAUSE_TIME', '/get_pause_time')
+SCHEDULER_POST_CAMPAIGN_RESULT = os.getenv('SCHEDULER_POST_CAMPAIGN_RESULT', '/throttle')
+SCHEDULER_GET_CAMPAIGN = os.getenv('SCHEDULER_GET_CAMPAIGN', '/get_campaign')
 
 # Carregando variáveis do ambiente
-REDIS_URL = os.getenv('REDIS_URL')
-YOUTUBE_LIST_VIDEOS = f'{os.getenv("BASE_YOUTUBE_URL")}{os.getenv("YOUTUBE_LIST_VIDEOS")}'
-INSTAGRAM_LIST_VIDEOS = f'{os.getenv("BASE_INSTAGRAM_URL")}{os.getenv("INSTAGRAM_LIST_VIDEOS")}'
-FLAG_THRESHOLD = os.getenv('FLAG_THRESHOLD')
-FLAG_DYNAMIC_DISTRIBUTION = os.getenv('FLAG_DYNAMIC_DISTRIBUTION')
-FLAG_JITTER = os.getenv('FLAG_JITTER')
-FLAG_CIRCUIT_BREAKER = os.getenv('FLAG_CIRCUIT_BREAKER')
-EVENT_URL = os.getenv('MONITORING_EVENT_URL')
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
+# Helper para construir URLs de forma segura
+def get_url(base_env, path_env, default_base="http://localhost:8000"):
+    base = os.getenv(base_env) or default_base
+    path = os.getenv(path_env) or ""
+    return f"{base.rstrip('/')}/{path.lstrip('/')}"
+
+YOUTUBE_LIST_VIDEOS = get_url("BASE_YOUTUBE_URL", "YOUTUBE_LIST_VIDEOS", "http://mock_youtube:8000")
+INSTAGRAM_LIST_VIDEOS = get_url("BASE_INSTAGRAM_URL", "INSTAGRAM_LIST_VIDEOS", "http://mock_instagram:8000")
+FLAG_THRESHOLD = os.getenv('FLAG_THRESHOLD', 'threshold')
+FLAG_DYNAMIC_DISTRIBUTION = os.getenv('FLAG_DYNAMIC_DISTRIBUTION', 'dynamic_distribution')
+FLAG_JITTER = os.getenv('FLAG_JITTER', 'jitter')
+FLAG_CIRCUIT_BREAKER = os.getenv('FLAG_CIRCUIT_BREAKER', 'circuit_breaker')
+EVENT_URL = os.getenv('MONITORING_EVENT_URL', 'http://monitoring:8000/event')
 
 # Conexão com Redis
 r = redis.from_url(REDIS_URL, decode_responses=True)
 
 # Parâmetros do Scheduler
 VALID_CONTENT = {
-    'youtube': {video['video_id'] for video in requests.get(YOUTUBE_LIST_VIDEOS).json().get('videos')},
-    'instagram': {video['video_id'] for video in requests.get(INSTAGRAM_LIST_VIDEOS).json().get('videos')},
+    'youtube': set(),
+    'instagram': set(),
 }
+
+def fetch_valid_content():
+    """Busca os IDs de vídeos válidos das APIs de mock."""
+    try:
+        yt_resp = requests.get(YOUTUBE_LIST_VIDEOS, timeout=5)
+        if yt_resp.status_code == 200:
+            VALID_CONTENT['youtube'] = {video['video_id'] for video in yt_resp.json().get('videos', [])}
+            print(f"IDs do YouTube carregados: {len(VALID_CONTENT['youtube'])}")
+        
+        ig_resp = requests.get(INSTAGRAM_LIST_VIDEOS, timeout=5)
+        if ig_resp.status_code == 200:
+            VALID_CONTENT['instagram'] = {video['video_id'] for video in ig_resp.json().get('videos', [])}
+            print(f"IDs do Instagram carregados: {len(VALID_CONTENT['instagram'])}")
+    except Exception as e:
+        print(f"Erro ao carregar conteúdos válidos: {e}")
+
 MAX_ALLOWED_RATE_LIMIT = 120
 MAX_LOCK_TIME = 120
 
@@ -49,14 +73,21 @@ rate_limits = {
     'instagram': MAX_ALLOWED_RATE_LIMIT / 2,
 }
 
-app = FastAPI(title='Campaign Scheduler')
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Inicializar conteúdo válido
+    fetch_valid_content()
 
-# Inicializar flags no Redis
-for flag in [FLAG_THRESHOLD, FLAG_DYNAMIC_DISTRIBUTION, FLAG_JITTER, FLAG_CIRCUIT_BREAKER]:
-    if r.get(f'flag:{flag}') is None:
-        r.set(f'flag:{flag}', 1)
-if r.get('config:max_pause_time') is None:
-    r.set('config:max_pause_time', 64)
+    # Inicializar flags
+    for flag in [FLAG_THRESHOLD, FLAG_DYNAMIC_DISTRIBUTION, FLAG_JITTER, FLAG_CIRCUIT_BREAKER]:
+        if r.get(f'flag:{flag}') is None:
+            r.set(f'flag:{flag}', 1)
+    if r.get('config:max_pause_time') is None:
+        r.set('config:max_pause_time', 64)
+    
+    yield
+
+app = FastAPI(title='Campaign Scheduler', lifespan=lifespan)
 
 
 class EnumLogStatus:

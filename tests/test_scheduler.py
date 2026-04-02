@@ -3,29 +3,63 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import os
 
-# Precisamos mockar o Redis ANTES de importar o app do scheduler
-# porque o scheduler.py cria a conexão no nível do módulo.
+# Configura variáveis de ambiente para os testes
+os.environ["BASE_YOUTUBE_URL"] = "http://mock_youtube:8000"
+os.environ["BASE_INSTAGRAM_URL"] = "http://mock_instagram:8000"
+os.environ["YOUTUBE_LIST_VIDEOS"] = "/list_videos"
+os.environ["INSTAGRAM_LIST_VIDEOS"] = "/list_videos"
+os.environ["SCHEDULER_CAMPAIGN"] = "/start_campaign"
+os.environ["SCHEDULER_POST_CAMPAIGN_RESULT"] = "/throttle"
+os.environ["MONITORING_EVENT_URL"] = "http://monitoring:8000/event"
 
+# Mock global para o Redis
 mock_redis = MagicMock()
 
-with patch("redis.from_url", return_value=mock_redis):
-    from services.scheduler.scheduler import app
+# Precisamos mockar o Redis e o requests ANTES de importar o app do scheduler
+with patch("redis.from_url", return_value=mock_redis), \
+     patch("requests.get"), \
+     patch("requests.post"):
+    from services.scheduler.scheduler import app, VALID_CONTENT
+    
+    # Popula VALID_CONTENT manualmente para os testes
+    VALID_CONTENT['youtube'] = {'youtube_video_1', 'youtube_video_2'}
+    VALID_CONTENT['instagram'] = {'instagram_video_1'}
 
-client = TestClient(app)
+@pytest.fixture(autouse=True)
+def mock_requests():
+    """Mock global para todas as chamadas de rede do requests nos testes."""
+    with patch("requests.get") as m_get, patch("requests.post") as m_post:
+        yield m_get, m_post
+
+@pytest.fixture
+def client():
+    with TestClient(app) as c:
+        yield c
 
 def setup_function():
     # Limpa o mock antes de cada teste
     mock_redis.reset_mock()
-    # Simula o comportamento do flushdb
+    # Simula o comportamento do flushdb e garante que get retorne None por padrão
     mock_redis.flushdb.return_value = True
+    mock_redis.get.return_value = None
 
-def test_lock_e_buffer_de_campanhas():
-    # Configura o mock para simular o comportamento de adquirir lock (set nx=True)
-    # Na primeira vez (lock:youtube), retorna True
-    # Na segunda vez (lock:youtube), retorna False
-    mock_redis.set.side_effect = [True, False]
+def test_lock_e_buffer_de_campanhas(client):
+    # Dicionário para simular o estado do Redis
+    redis_state = {}
     
-    # Envia a primeira campanha para o YouTube (deve ir para a fila e criar o lock)
+    def mock_get(key):
+        return redis_state.get(key)
+        
+    def mock_set(key, value, **kwargs):
+        if kwargs.get('nx') and key in redis_state:
+            return False
+        redis_state[key] = str(value)
+        return True
+
+    mock_redis.get.side_effect = mock_get
+    mock_redis.set.side_effect = mock_set
+    
+    # Envia a primeira campanha para o YouTube (deve ir para a fila e criar o lock pois is_locked e False)
     response1 = client.post("/start_campaign?platform=youtube&actions=10&content_id=youtube_video_1")
     assert response1.status_code == 200
     assert "adicionada à fila" in response1.json()["message"]
@@ -42,12 +76,16 @@ def test_lock_e_buffer_de_campanhas():
     mock_redis.lpush.assert_called()
     mock_redis.rpush.assert_called()
 
-def test_throttle_diminui_rate_limit():
-    # Simula a flag ligada
-    mock_redis.get.return_value = '1' 
+def test_throttle_diminui_rate_limit(client):
+    # Simula a flag ligada no Redis
+    def side_effect(key):
+        if "flag:threshold" in key:
+            return '1'
+        return None
+    mock_redis.get.side_effect = side_effect
     
-    # Chama a rota de throttle informando que 120 falhou
-    response = client.post("/throttle?platform=youtube&rejected_rate_limit=120")
+    # Chama a rota de resultado de campanha informando que rate_limit 120 foi rejeitado (approved=0)
+    response = client.post("/throttle?platform=youtube&rate_limit=120&approved=0")
     assert response.status_code == 200
     
     # A velocidade atual deve cair (a lógica do seu código reduz para algo próximo da metade)
