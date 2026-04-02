@@ -3,6 +3,8 @@ import time
 import redis
 import requests
 import random
+import redis.exceptions
+from urllib.parse import urlencode
 
 # Redis
 r = redis.from_url(os.getenv('REDIS_URL'), decode_responses=True)
@@ -74,7 +76,16 @@ while True:
 print('Worker iniciado. Escutando a fila no Redis...')
 
 while True:
-    tarefa = r.brpop('fila_campanhas', timeout=5)
+    try:
+        tarefa = r.brpop('fila_campanhas', timeout=5)
+    except redis.exceptions.ConnectionError:
+        print("\n[WORKER] Conexão com o Redis perdida! Tentando reconectar em 5s...")
+        time.sleep(5)
+        continue
+    except Exception as e:
+        print(f"\n[WORKER] Erro inesperado ao acessar o Redis: {e}")
+        time.sleep(5)
+        continue
 
     if not tarefa:
         continue
