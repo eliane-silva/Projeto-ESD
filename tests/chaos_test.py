@@ -25,18 +25,26 @@ def test_chaos_redis_restart():
 
 def test_chaos_kill_worker():
     print("\n--- TESTE 2: Matando um Worker aleatório ---")
-    # Lista containers de workers
-    res = run_command(["docker", "ps", "--filter", "name=worker", "--format", "{{.ID}}"])
-    workers = res.stdout.strip().split('\n')
     
-    if workers and workers[0]:
-        target = workers[0]
+    # Pega todos os contêineres rodando (ID e Nome)
+    res = run_command(["docker", "ps", "--format", "{{.ID}} {{.Names}}"])
+    
+    # Filtra no próprio Python quem tem "worker" no nome
+    workers = []
+    if res.stdout:
+        for linha in res.stdout.strip().split('\n'):
+            if 'worker' in linha.lower():
+                id_container = linha.split()[0]
+                workers.append(id_container)
+    
+    if workers:
+        target = workers[0]  # Pega o primeiro da lista
         print(f"Matando worker {target}...")
         run_command(["docker", "kill", target])
         time.sleep(2)
         print("Worker morto. Verificando se a fila continua sendo processada por outros...")
     else:
-        print("Nenhum worker encontrado.")
+        print("Nenhum worker encontrado. Verifique se os contêineres estão rodando.")
 
 if __name__ == "__main__":
     print("=== INICIANDO TESTES DE CAOS (Chaos Engineering) ===")
