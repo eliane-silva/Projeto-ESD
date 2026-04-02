@@ -1,20 +1,27 @@
 from fastapi import FastAPI, HTTPException, Request, Query
+import os
 import time
 
-app = FastAPI(title='Fake YouTube')
+# URLs da API
+YOUTUBE_LIST_VIDEOS = os.getenv('YOUTUBE_LIST_VIDEOS')
+YOUTUBE_LIKE_VIDEO = os.getenv('YOUTUBE_LIKE_VIDEO')
+YOUTUBE_GET_LIKES = os.getenv('YOUTUBE_GET_LIKES')
 
-LIMIT = 120
-WINDOW = 1
+# Parâmetros de throttling
+LIMIT = 1
+WINDOW = 5
 
+# Conteúdos da plataforma
 videos = {
     f'youtube_video_{i}': {'likes': 0}
     for i in range(1, 6)
 }
-
 requests_por_ip = {}
 
+app = FastAPI(title='Fake YouTube')
 
-@app.get('/api/youtube/videos')
+
+@app.get(YOUTUBE_LIST_VIDEOS)
 def list_videos():
     return {
         'platform': 'youtube',
@@ -25,8 +32,8 @@ def list_videos():
     }
 
 
-@app.post('/api/youtube/like')
-def youtube_like(
+@app.post(YOUTUBE_LIKE_VIDEO)
+def like_video(
     request: Request,
     video_id: str = Query(..., description='Identificador do conteúdo')
 ):
@@ -34,7 +41,8 @@ def youtube_like(
     now = time.time()
 
     if video_id not in videos:
-        raise HTTPException(status_code=404, detail='YouTube: conteúdo não encontrado')
+        raise HTTPException(
+            status_code=404, detail='YouTube: conteúdo não encontrado')
 
     if ip not in requests_por_ip:
         requests_por_ip[ip] = []
@@ -43,7 +51,8 @@ def youtube_like(
     current = len(requests_por_ip[ip])
 
     if current >= LIMIT:
-        raise HTTPException(status_code=429, detail='YouTube: Too Many Requests')
+        raise HTTPException(
+            status_code=429, detail='YouTube: Too Many Requests')
 
     requests_por_ip[ip].append(now)
     videos[video_id]['likes'] += 1
@@ -60,11 +69,12 @@ def youtube_like(
     }
 
 
-@app.get('/api/youtube/get_likes')
+@app.get(YOUTUBE_GET_LIKES)
 def get_likes(video_id: str | None = None):
     if video_id is not None:
         if video_id not in videos:
-            raise HTTPException(status_code=404, detail='YouTube: conteúdo não encontrado')
+            raise HTTPException(
+                status_code=404, detail='YouTube: conteúdo não encontrado')
         return {
             'platform': 'youtube',
             'video_id': video_id,
