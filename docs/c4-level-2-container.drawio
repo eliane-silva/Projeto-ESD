@@ -49,13 +49,13 @@
         <mxCell id="sqlite-ext" parent="1" style="text;whiteSpace=wrap;html=1;fontStyle=2;fontColor=#888888;" value="infraestrutura externa" vertex="1">
           <mxGeometry height="20" width="140" x="760" y="703" as="geometry" />
         </mxCell>
-        <mxCell id="youtube" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="API do Youtube (fake)&lt;br&gt;[Python/FastAPI]" vertex="1">
+        <mxCell id="youtube" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="API do Youtube (mock)&lt;br&gt;[Python/FastAPI]" vertex="1">
           <mxGeometry height="60" width="150" x="1020" y="210" as="geometry" />
         </mxCell>
         <mxCell id="youtube-ext" parent="1" style="text;whiteSpace=wrap;html=1;fontStyle=2;fontColor=#888888;" value="plataforma externa simulada" vertex="1">
           <mxGeometry height="20" width="150" x="1030" y="270" as="geometry" />
         </mxCell>
-        <mxCell id="instagram" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="API do Instagram (fake)&lt;br&gt;[Python/FastAPI]" vertex="1">
+        <mxCell id="instagram" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="API do Instagram (mock)&lt;br&gt;[Python/FastAPI]" vertex="1">
           <mxGeometry height="60" width="150" x="1030" y="400" as="geometry" />
         </mxCell>
         <mxCell id="instagram-ext" parent="1" style="text;whiteSpace=wrap;html=1;fontStyle=2;fontColor=#888888;" value="plataforma externa simulada" vertex="1">

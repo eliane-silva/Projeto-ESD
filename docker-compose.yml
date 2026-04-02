@@ -4,44 +4,49 @@ services:
     ports:
       - "6379:6379"
 
-  fake_youtube:
-    build: ./services/fake_youtube
+  mock_youtube:
+    build: ./services/mock_youtube
+    env_file:
+      - .env.docker
     ports:
-      - "8001:8001"
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-    command: python -u -m uvicorn app:app --host 0.0.0.0 --port 8001 
+      - "8001:8000"
+    command: python -u -m uvicorn app:app --host 0.0.0.0 --port 8000
 
-  fake_instagram:
-    build: ./services/fake_instagram
+  mock_instagram:
+    build: ./services/mock_instagram
+    env_file:
+      - .env.docker
     ports:
-      - "8002:8002"
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-    command: python -u -m uvicorn app:app --host 0.0.0.0 --port 8002 
+      - "8002:8000"
+    command: python -u -m uvicorn app:app --host 0.0.0.0 --port 8000
 
   scheduler:
     build: ./services/scheduler
     ports:
       - "8000:8000"
-    environment:
-      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env.docker
     depends_on:
       - redis
-    command: python -u -m uvicorn scheduler:app --host 0.0.0.0 --port 8000 
+      - mock_youtube
+      - mock_instagram
+    command: python -u -m uvicorn scheduler:app --host 0.0.0.0 --port 8000
 
   worker:
     build: ./services/worker
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - YOUTUBE_URL=http://fake_youtube:8001/api/youtube/like
-      - INSTAGRAM_URL=http://fake_instagram:8002/api/instagram/like
+    env_file:
+      - .env.docker
     depends_on:
       - redis
-      - fake_youtube
-      - fake_instagram
+      - scheduler
+      - mock_youtube
+      - mock_instagram
+      - monitoring
     command: python -u worker.py
+
+  monitoring:
+    build: ./services/monitoring
+    ports:
+      - "8003:8000"
+    env_file:
+      - .env.docker
