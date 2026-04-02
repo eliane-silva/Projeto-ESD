@@ -1,6 +1,7 @@
 import os
 import subprocess
 import requests
+import redis
 import time
 from dotenv import load_dotenv
 
@@ -162,29 +163,32 @@ def ver_likes():
 def mudar_flags():
     print('\n')
     for i, flag in enumerate(FLAGS, 1):
-        print(f'{i} | {flag:<40} | {requests.get(f"{GET_FLAG}?flag={flag}").text}')
+        print(f'{i} | {flag:<40} | {r.get(f"flag:{flag}")}')
     print('0 | Sair')
 
     try:
         op = int(input('Qual flag deseja alternar? '))
-    except ValueError:  # tratamento de erros
+    except ValueError:
         print('Opção inválida')
         return
 
     if op == 0:
         return
 
-    if op < 1 or op > len(FLAGS):  # tratamento de erros
+    if op < 1 or op > len(FLAGS):
         print('Opção inválida')
         return
 
     op -= 1
 
-    requests.post(f'{ALT_FLAG}?flag={FLAGS[op]}')
+    if r.get(f'flag:{FLAGS[op]}') == '0':
+        r.set(f'flag:{FLAGS[op]}', 1)
+    else:
+        r.set(f'flag:{FLAGS[op]}', 0)
 
 
 def configurar_teto():
-    atual = requests.get(SCHEDULER_GET_PAUSE_TIME).text
+    atual = r.get('config:max_pause_time')
     print(f'\nTeto atual do circuit breaker: {atual}s')
 
     try:
@@ -196,7 +200,7 @@ def configurar_teto():
         print('Valor inválido')
         return
 
-    requests.post(f'{SCHEDULER_SET_PAUSE_TIME}?time={novo}')
+    r.set('config:max_pause_time', novo)
     print(f'Teto atualizado para {novo}s')
 
 def ver_metricas():
@@ -302,6 +306,14 @@ def main():
 
     subir_docker(workers)
     esperar_scheduler()
+
+    global r
+    r = redis.from_url(os.getenv('REDIS_URL'), decode_responses=True)
+    time.sleep(1)
+
+    for flag in FLAGS:
+        r.set(f'flag:{flag}', 1)
+    r.set('config:max_pause_time', 64)
 
     menu()
 

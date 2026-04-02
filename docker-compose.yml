@@ -1,4 +1,9 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   fake_youtube:
     build: ./services/fake_youtube
     env_file:
@@ -22,15 +27,17 @@ services:
     env_file:
       - .env.docker
     depends_on:
+      - redis
       - fake_youtube
       - fake_instagram
-    command: python -u -m uvicorn scheduler:app --host 0.0.0.0 --port 8000 
+    command: python -u -m uvicorn scheduler:app --host 0.0.0.0 --port 8000
 
   worker:
     build: ./services/worker
     env_file:
       - .env.docker
     depends_on:
+      - redis
       - scheduler
       - fake_youtube
       - fake_instagram

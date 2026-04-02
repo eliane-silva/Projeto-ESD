@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+import redis
 import os
 import requests
 import random
@@ -23,6 +24,9 @@ FLAG_JITTER = os.getenv('FLAG_JITTER')
 FLAG_CIRCUIT_BREAKER = os.getenv('FLAG_CIRCUIT_BREAKER')
 EVENT_URL = os.getenv('MONITORING_EVENT_URL')
 
+# Conexão com Redis
+r = redis.from_url(REDIS_URL, decode_responses=True)
+
 # Parâmetros do Scheduler
 VALID_CONTENT = {
     'youtube': {video['video_id'] for video in requests.get(YOUTUBE_LIST_VIDEOS).json().get('videos')},
@@ -30,23 +34,6 @@ VALID_CONTENT = {
 }
 MAX_ALLOWED_RATE_LIMIT = 120
 MAX_LOCK_TIME = 120
-
-campaigns_queue = []
-campaign_buffer = {
-    'youtube': [],
-    'instagram': []
-}
-campaign_lock = {
-    'youtube': {'lock': 0, 'time': 0},
-    'instagram': {'lock': 0, 'time': 0}
-}
-max_pause_time = 64
-flags = {
-    FLAG_THRESHOLD: 1,
-    FLAG_DYNAMIC_DISTRIBUTION: 1,
-    FLAG_JITTER: 1,
-    FLAG_CIRCUIT_BREAKER: 1,
-}
 
 # Rate Limit estimados
 max_rate_limits = {
@@ -64,6 +51,13 @@ rate_limits = {
 
 app = FastAPI(title='Campaign Scheduler')
 
+# Inicializar flags no Redis
+for flag in [FLAG_THRESHOLD, FLAG_DYNAMIC_DISTRIBUTION, FLAG_JITTER, FLAG_CIRCUIT_BREAKER]:
+    if r.get(f'flag:{flag}') is None:
+        r.set(f'flag:{flag}', 1)
+if r.get('config:max_pause_time') is None:
+    r.set('config:max_pause_time', 64)
+
 
 class EnumLogStatus:
     RATE_INCREASE = 'RATE_INCREASE'
@@ -80,27 +74,18 @@ def log_action(platform, status):
     )
 
 def is_locked(platform):
-    if campaign_lock[platform]['lock'] == 0:
-        return False
-
-    elapsed = time.time() - campaign_lock[platform]['time']
-    if elapsed > MAX_LOCK_TIME:
-        campaign_lock[platform]['lock'] = 0
-        campaign_lock[platform]['time'] = 0
-        return False
-
-    return True
+    lock_key = f'lock:{platform}'
+    return r.get(lock_key) is not None
 
 
 def unlock(platform):
-    campaign_lock[platform]['lock'] = 0
-    campaign_lock[platform]['time'] = 0
+    lock_key = f'lock:{platform}'
+    r.delete(lock_key)
 
 
 def lock(platform):
-    if not is_locked(platform):
-        campaign_lock[platform]['lock'] = 1
-        campaign_lock[platform]['time'] = time.time()
+    lock_key = f'lock:{platform}'
+    r.set(lock_key, 1, nx=True, ex=MAX_LOCK_TIME)
 
 
 @app.post(SCHEDULER_CAMPAIGN)
@@ -118,14 +103,15 @@ def post_campaign(platform: str, actions: int, content_id: str):
 
     if not is_locked(platform):
         lock(platform)
-        campaigns_queue.append(campanha_str)
+        r.lpush('fila_campanhas', campanha_str)
         return {
             'message': f'Campanha para {platform} adicionada à fila com {actions} ações.',
             'content_id': content_id,
             'rate_limit': rate_limit
         }
     else:
-        campaign_buffer[platform].append(campanha_str)
+        buffer_key = f'buffer:{platform}'
+        r.rpush(buffer_key, campanha_str)
         return {
             'message': f'Campanha para {platform} guardada no buffer.',
             'content_id': content_id,
@@ -135,23 +121,23 @@ def post_campaign(platform: str, actions: int, content_id: str):
 
 @app.post(ALT_FLAG)
 def alt_flag(flag: str):
-    flags[flag] = 1 - flags[flag]
+    current = r.get(f'flag:{flag}')
+    r.set(f'flag:{flag}', 0 if current == '1' else 1)
 
 
 @app.get(GET_FLAG)
 def get_flag(flag: str):
-    return flags[flag]
+    return int(r.get(f'flag:{flag}') or 0)
 
 
 @app.post(SCHEDULER_SET_PAUSE_TIME)
 def set_pause_time(time: int):
-    global max_pause_time
-    max_pause_time = time
+    r.set('config:max_pause_time', time)
 
 
 @app.get(SCHEDULER_GET_PAUSE_TIME)
 def get_pause_time():
-    return max_pause_time
+    return int(r.get('config:max_pause_time') or 64)
 
 
 def increase_rate_limit(platform: str, approved_rate_limit: int):
@@ -186,7 +172,7 @@ def post_campaign_result(
     rate_limit: int,
     approved: int
 ):
-    if flags[FLAG_THRESHOLD] == 1:
+    if r.get(f'flag:{FLAG_THRESHOLD}') == '1':
         if approved == 1:
             increase_rate_limit(platform, rate_limit)
         elif approved == 0:
@@ -199,17 +185,18 @@ def post_campaign_result(
 
 @app.get(SCHEDULER_GET_CAMPAIGN)
 def get_campaign():
-    if len(campaigns_queue) == 0:
+    if r.llen('fila_campanhas') == 0:
         possible_platforms = {}
 
         for plat in rate_limits.keys():
-            if len(campaign_buffer[plat]) > 0 and not is_locked(plat):
+            buffer_key = f'buffer:{plat}'
+            if r.llen(buffer_key) > 0 and not is_locked(plat):
                 possible_platforms[plat] = rate_limits[plat]
 
         if possible_platforms:
             plats = list(possible_platforms.keys())
 
-            if flags[FLAG_DYNAMIC_DISTRIBUTION] == 0:
+            if r.get(f'flag:{FLAG_DYNAMIC_DISTRIBUTION}') != '1':
                 platform = random.choice(plats)
                 print(f'Flag de dynamic distribution desligada.')
                 print(f'Uma campanha para [{platform}] foi escolhida de forma aleatória.')
@@ -218,14 +205,15 @@ def get_campaign():
                 platform = random.choices(plats, weights=weights, k=1)[0]
                 print(f'Uma campanha para [{platform}] foi escolhida com base nos pesos {possible_platforms}')
 
-            campaign = campaign_buffer[platform].pop(0)
+            buffer_key = f'buffer:{platform}'
+            campaign = r.lpop(buffer_key)
             lock(platform)
             return campaign
         else:
             print('Não existem campanhas em nenhum buffer.')
 
-    if len(campaigns_queue) > 0:
-        campaign = campaigns_queue.pop(0)
+    campaign = r.lpop('fila_campanhas')
+    if campaign:
         platform, _, _, _ = campaign.split(':')
         lock(platform)
         return campaign
