@@ -68,3 +68,4 @@ python main.py
 ## Videocast
 
 Link do videocast: 
+https://drive.google.com/file/d/1nu9IL6ewcOp6eshMYDxU0twOFq2dPadX/view?usp=sharing
