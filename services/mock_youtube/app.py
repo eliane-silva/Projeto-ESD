@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, Query
+import time
 from config import settings
 
 # Parâmetros de throttling
