@@ -43,9 +43,9 @@ automática
 
 Link da Documentação Final do Projeto: https://docs.google.com/document/d/1qTWPjUGwfmtNu3PTfZMzSrYEmb-wL6ZAQY8ieAj0aK8/edit?usp=sharing
 
-Link do Diagrama C4 - Nível 1 (Contexto): https://drive.google.com/file/d/1EyB3Ur0WEH_RajkteIIaMYCYXCROOUOc/view?usp=sharing
+Link do Diagrama C4 - Nível 1 (Contexto): https://drive.google.com/file/d/1Ghi26I7Yxc_91Wee5bx42LOEj1ZUM06n/view?usp=sharing
 
-Link do Diagrama C4 - Nível 2 (Containers): https://drive.google.com/file/d/1WGRCEU0rvo9p7Xg-idEaHYl7zU7sjp8l/view?usp=sharing
+Link do Diagrama C4 - Nível 2 (Containers): https://drive.google.com/file/d/1BNfv6ETByls0Q-eJT2XB3K9lYqWOq07n/view?usp=sharing
 
 ## Como rodar o projeto
 
