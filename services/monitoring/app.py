@@ -1,9 +1,11 @@
 from fastapi import FastAPI
-from config import settings
+from fastapi.middleware.cors import CORSMiddleware
 from database import SessionLocal, engine
 from models import Base, Action, Event
+from config import settings
 
 app = FastAPI(title="Monitoring Service")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 Base.metadata.create_all(bind=engine)
 

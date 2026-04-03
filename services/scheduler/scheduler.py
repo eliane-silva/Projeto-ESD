@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 import redis
 import os
 import requests
@@ -51,10 +52,8 @@ rate_limits = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializar conteúdo válido
     fetch_valid_content()
 
-    # Inicializar flags
     for flag in [settings.flag_threshold, settings.flag_dynamic_distribution, settings.flag_jitter, settings.flag_circuit_breaker]:
         if r.get(f'flag:{flag}') is None:
             r.set(f'flag:{flag}', 1)
@@ -64,7 +63,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title='Campaign Scheduler', lifespan=lifespan)
-
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class EnumLogStatus:
     RATE_INCREASE = 'RATE_INCREASE'
