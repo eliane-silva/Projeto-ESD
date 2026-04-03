@@ -6,18 +6,10 @@ import random
 import redis.exceptions
 from urllib.parse import urlencode
 
-# Redis
-r = redis.from_url(os.getenv('REDIS_URL'), decode_responses=True)
+from config import settings
 
-# URLs
-HOME_URL = f'{os.getenv("BASE_SCHEDULER_URL")}{os.getenv("SCHEDULER_HOME")}'
-POST_RESULT_URL = f'{os.getenv("BASE_SCHEDULER_URL")}{os.getenv("SCHEDULER_POST_CAMPAIGN_RESULT")}'
-YOUTUBE_URL = os.getenv('BASE_YOUTUBE_URL') + os.getenv('YOUTUBE_LIKE_VIDEO')
-INSTAGRAM_URL = os.getenv('BASE_INSTAGRAM_URL') + os.getenv('INSTAGRAM_LIKE_VIDEO')
-MONITORING_URL = os.getenv('MONITORING_URL')
-EVENT_URL = os.getenv('MONITORING_EVENT_URL')
-FLAG_CIRCUIT_BREAKER = os.getenv('FLAG_CIRCUIT_BREAKER')
-FLAG_JITTER = os.getenv('FLAG_JITTER')
+# Redis
+r = redis.from_url(settings.redis_url, decode_responses=True)
 
 
 class EnumLogStatus:
@@ -28,7 +20,7 @@ class EnumLogStatus:
 def log_action(plataforma, content_id, status=None):
     if status == EnumLogStatus.SUCCESS:
         requests.post(
-            MONITORING_URL,
+            settings.monitoring_url,
             params={
                 'platform': plataforma,
                 'status': 'success',
@@ -37,14 +29,14 @@ def log_action(plataforma, content_id, status=None):
         )
     elif status == EnumLogStatus.BLOCK:
         requests.post(
-            EVENT_URL,
+            settings.monitoring_event_url,
             params={
                 'platform': plataforma,
                 'type': 'BLOCK'
             }
         )
         requests.post(
-            MONITORING_URL,
+            settings.monitoring_url,
             params={
                 'platform': plataforma,
                 'status': 'blocked',
@@ -53,7 +45,7 @@ def log_action(plataforma, content_id, status=None):
         )
     else:
         requests.post(
-            MONITORING_URL,
+            settings.monitoring_url,
             params={
                 'platform': plataforma,
                 'status': 'error',
@@ -65,7 +57,7 @@ def log_action(plataforma, content_id, status=None):
 print('Aguardando scheduler iniciar...')
 while True:
     try:
-        res = requests.get(HOME_URL)
+        res = requests.get(settings.scheduler_home_url)
         if res.status_code == 200:
             print('Scheduler iniciado com sucesso.\n')
             break
@@ -100,9 +92,9 @@ while True:
     rate_limit_changed = False
 
     if plataforma == 'youtube':
-        url_base = YOUTUBE_URL
+        url_base = settings.youtube_like_url
     elif plataforma == 'instagram':
-        url_base = INSTAGRAM_URL
+        url_base = settings.instagram_like_url
 
     url_alvo = f'{url_base}?video_id={content_id}'
     print(f'\n[WORKER] Iniciando {acoes} ações no {plataforma} para {content_id}...')
@@ -112,14 +104,14 @@ while True:
 
     i = 0
     while i < acoes:
-        if circuit_open and r.get(f'flag:{FLAG_CIRCUIT_BREAKER}') == '1':
+        if circuit_open and r.get(f'flag:{settings.flag_circuit_breaker}') == '1':
             print(f'[{plataforma}/{content_id}] CIRCUIT BREAKER ABERTO! Pausando por {pause_time}s...')
             time.sleep(pause_time)
             circuit_open = False
             print(f'[{plataforma}/{content_id}] Tentando reconectar...')
 
         try:
-            if r.get(f'flag:{FLAG_JITTER}') == '1':
+            if r.get(f'flag:{settings.flag_jitter}') == '1':
                 wait_time = min(
                     random.normalvariate(action_delay, deviation),
                     action_delay + deviation
@@ -140,7 +132,7 @@ while True:
                     rate_limit_changed = True
                     rate_limit /= 2
 
-                if r.get(f'flag:{FLAG_CIRCUIT_BREAKER}') == '1':
+                if r.get(f'flag:{settings.flag_circuit_breaker}') == '1':
                     print(f'[{plataforma}/{content_id}] BLOQUEADO (429)! Abrindo circuito.')
                     circuit_open = True
                     max_pause = int(r.get('config:max_pause_time') or 64)
@@ -164,7 +156,7 @@ while True:
             'rate_limit': original_rate_limit,
             'approved': 0 if rate_limit_changed else 1
         }
-        requests.post(POST_RESULT_URL, params=params)
+        requests.post(settings.scheduler_result_url, params=params)
     except Exception as e:
         print(f'Erro de conexão: {e}')
         break

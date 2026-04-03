@@ -6,34 +6,10 @@ import requests
 import random
 import time
 
-# URLs da API
-SCHEDULER_CAMPAIGN = os.getenv('SCHEDULER_CAMPAIGN', '/start_campaign')
-ALT_FLAG = os.getenv('ALT_FLAG', '/alt_flag')
-GET_FLAG = os.getenv('GET_FLAG', '/get_flag')
-SCHEDULER_SET_PAUSE_TIME = os.getenv('SCHEDULER_SET_PAUSE_TIME', '/set_pause_time')
-SCHEDULER_GET_PAUSE_TIME = os.getenv('SCHEDULER_GET_PAUSE_TIME', '/get_pause_time')
-SCHEDULER_POST_CAMPAIGN_RESULT = os.getenv('SCHEDULER_POST_CAMPAIGN_RESULT', '/throttle')
-SCHEDULER_GET_CAMPAIGN = os.getenv('SCHEDULER_GET_CAMPAIGN', '/get_campaign')
-
-# Carregando variáveis do ambiente
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-
-# Helper para construir URLs de forma segura
-def get_url(base_env, path_env, default_base="http://localhost:8000"):
-    base = os.getenv(base_env) or default_base
-    path = os.getenv(path_env) or ""
-    return f"{base.rstrip('/')}/{path.lstrip('/')}"
-
-YOUTUBE_LIST_VIDEOS = get_url("BASE_YOUTUBE_URL", "YOUTUBE_LIST_VIDEOS", "http://mock_youtube:8000")
-INSTAGRAM_LIST_VIDEOS = get_url("BASE_INSTAGRAM_URL", "INSTAGRAM_LIST_VIDEOS", "http://mock_instagram:8000")
-FLAG_THRESHOLD = os.getenv('FLAG_THRESHOLD', 'threshold')
-FLAG_DYNAMIC_DISTRIBUTION = os.getenv('FLAG_DYNAMIC_DISTRIBUTION', 'dynamic_distribution')
-FLAG_JITTER = os.getenv('FLAG_JITTER', 'jitter')
-FLAG_CIRCUIT_BREAKER = os.getenv('FLAG_CIRCUIT_BREAKER', 'circuit_breaker')
-EVENT_URL = os.getenv('MONITORING_EVENT_URL', 'http://monitoring:8000/event')
+from config import settings
 
 # Conexão com Redis
-r = redis.from_url(REDIS_URL, decode_responses=True)
+r = redis.from_url(settings.redis_url, decode_responses=True)
 
 # Parâmetros do Scheduler
 VALID_CONTENT = {
@@ -44,12 +20,12 @@ VALID_CONTENT = {
 def fetch_valid_content():
     """Busca os IDs de vídeos válidos das APIs de mock."""
     try:
-        yt_resp = requests.get(YOUTUBE_LIST_VIDEOS, timeout=5)
+        yt_resp = requests.get(settings.youtube_list_url, timeout=5)
         if yt_resp.status_code == 200:
             VALID_CONTENT['youtube'] = {video['video_id'] for video in yt_resp.json().get('videos', [])}
             print(f"IDs do YouTube carregados: {len(VALID_CONTENT['youtube'])}")
         
-        ig_resp = requests.get(INSTAGRAM_LIST_VIDEOS, timeout=5)
+        ig_resp = requests.get(settings.instagram_list_url, timeout=5)
         if ig_resp.status_code == 200:
             VALID_CONTENT['instagram'] = {video['video_id'] for video in ig_resp.json().get('videos', [])}
             print(f"IDs do Instagram carregados: {len(VALID_CONTENT['instagram'])}")
@@ -79,7 +55,7 @@ async def lifespan(app: FastAPI):
     fetch_valid_content()
 
     # Inicializar flags
-    for flag in [FLAG_THRESHOLD, FLAG_DYNAMIC_DISTRIBUTION, FLAG_JITTER, FLAG_CIRCUIT_BREAKER]:
+    for flag in [settings.flag_threshold, settings.flag_dynamic_distribution, settings.flag_jitter, settings.flag_circuit_breaker]:
         if r.get(f'flag:{flag}') is None:
             r.set(f'flag:{flag}', 1)
     if r.get('config:max_pause_time') is None:
@@ -96,7 +72,7 @@ class EnumLogStatus:
 
 def log_action(platform, status):
     requests.post(
-        EVENT_URL,
+        settings.monitoring_event_url,
         params={
             'platform': platform,
             'type': status
@@ -119,7 +95,7 @@ def lock(platform):
     r.set(lock_key, 1, nx=True, ex=MAX_LOCK_TIME)
 
 
-@app.post(SCHEDULER_CAMPAIGN)
+@app.post(settings.scheduler_campaign)
 def post_campaign(platform: str, actions: int, content_id: str):
     if platform not in VALID_CONTENT:
         raise HTTPException(status_code=400, detail='Plataforma inválida')
@@ -150,23 +126,23 @@ def post_campaign(platform: str, actions: int, content_id: str):
         }
 
 
-@app.post(ALT_FLAG)
+@app.post(settings.alt_flag)
 def alt_flag(flag: str):
     current = r.get(f'flag:{flag}')
     r.set(f'flag:{flag}', 0 if current == '1' else 1)
 
 
-@app.get(GET_FLAG)
+@app.get(settings.get_flag)
 def get_flag(flag: str):
     return int(r.get(f'flag:{flag}') or 0)
 
 
-@app.post(SCHEDULER_SET_PAUSE_TIME)
+@app.post(settings.scheduler_set_pause_time)
 def set_pause_time(time: int):
     r.set('config:max_pause_time', time)
 
 
-@app.get(SCHEDULER_GET_PAUSE_TIME)
+@app.get(settings.scheduler_get_pause_time)
 def get_pause_time():
     return int(r.get('config:max_pause_time') or 64)
 
@@ -197,13 +173,13 @@ def decrease_rate_limit(platform: str, rejected_rate_limit: int):
     print(f'[{platform}] Velocidade atual reduzida para {rate_limits[platform]}.')
 
 
-@app.post(SCHEDULER_POST_CAMPAIGN_RESULT)
+@app.post(settings.scheduler_post_campaign_result)
 def post_campaign_result(
     platform: str,
     rate_limit: int,
     approved: int
 ):
-    if r.get(f'flag:{FLAG_THRESHOLD}') == '1':
+    if r.get(f'flag:{settings.flag_threshold}') == '1':
         if approved == 1:
             increase_rate_limit(platform, rate_limit)
         elif approved == 0:
@@ -214,7 +190,7 @@ def post_campaign_result(
     unlock(platform)
 
 
-@app.get(SCHEDULER_GET_CAMPAIGN)
+@app.get(settings.scheduler_get_campaign)
 def get_campaign():
     if r.llen('fila_campanhas') == 0:
         possible_platforms = {}
@@ -227,7 +203,7 @@ def get_campaign():
         if possible_platforms:
             plats = list(possible_platforms.keys())
 
-            if r.get(f'flag:{FLAG_DYNAMIC_DISTRIBUTION}') != '1':
+            if r.get(f'flag:{settings.flag_dynamic_distribution}') != '1':
                 platform = random.choice(plats)
                 print(f'Flag de dynamic distribution desligada.')
                 print(f'Uma campanha para [{platform}] foi escolhida de forma aleatória.')

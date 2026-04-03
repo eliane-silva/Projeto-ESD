@@ -1,11 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, Query
-import os
-import time
-
-# URLs da API
-INSTAGRAM_LIST_VIDEOS = os.getenv('INSTAGRAM_LIST_VIDEOS')
-INSTAGRAM_LIKE_VIDEO = os.getenv('INSTAGRAM_LIKE_VIDEO')
-INSTAGRAM_GET_LIKES = os.getenv('INSTAGRAM_GET_LIKES')
+from config import settings
 
 # Parâmetros de throttling
 LIMIT = 120
@@ -21,7 +15,7 @@ requests_por_ip = {}
 app = FastAPI(title='Fake Instagram')
 
 
-@app.get(INSTAGRAM_LIST_VIDEOS)
+@app.get(settings.instagram_list_videos)
 def list_videos():
     return {
         'platform': 'instagram',
@@ -32,7 +26,7 @@ def list_videos():
     }
 
 
-@app.post(INSTAGRAM_LIKE_VIDEO)
+@app.post(settings.instagram_like_video)
 def like_video(
     request: Request,
     video_id: str = Query(..., description='Identificador do conteúdo')
@@ -69,7 +63,7 @@ def like_video(
     }
 
 
-@app.get(INSTAGRAM_GET_LIKES)
+@app.get(settings.instagram_get_likes)
 def get_likes(video_id: str | None = None):
     if video_id is not None:
         if video_id not in videos:

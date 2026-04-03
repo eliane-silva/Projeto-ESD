@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from config import settings
 from database import SessionLocal, engine
 from models import Base, Action, Event
 
@@ -7,7 +8,7 @@ app = FastAPI(title="Monitoring Service")
 Base.metadata.create_all(bind=engine)
 
 
-@app.post("/action")
+@app.post(settings.monitoring_action)
 def register_action(platform: str, status: str, content_id: str):
     db = SessionLocal()
     action = Action(platform=platform, status=status, content_id=content_id)
@@ -17,7 +18,7 @@ def register_action(platform: str, status: str, content_id: str):
     return {"ok": True}
 
 
-@app.post("/event")
+@app.post(settings.monitoring_event)
 def register_event(platform: str, type: str):
     db = SessionLocal()
     event = Event(platform=platform, type=type)
@@ -26,7 +27,7 @@ def register_event(platform: str, type: str):
     db.close()
     return {"ok": True}
 
-@app.get("/metrics/{platform}")
+@app.get(settings.monitoring_metrics)
 def get_metrics(platform: str):
     db = SessionLocal()
 

@@ -9,21 +9,18 @@ from dotenv import load_dotenv
 # Carregando variáveis do ambiente
 load_dotenv()
 
-SCHEDULER_HOME = os.getenv('SCHEDULER_HOME')
-SCHEDULER_CAMPAIGN = os.getenv('SCHEDULER_CAMPAIGN')
-SCHEDULER_SET_PAUSE_TIME = os.getenv('SCHEDULER_SET_PAUSE_TIME')
-SCHEDULER_GET_PAUSE_TIME = os.getenv('SCHEDULER_GET_PAUSE_TIME')
+from config import settings
 
-ALT_FLAG = os.getenv('ALT_FLAG')
-GET_FLAG = os.getenv('GET_FLAG')
-FLAGS_TAGS = os.getenv('FLAGS').split(',')
-FLAGS = [os.getenv(tag) for tag in FLAGS_TAGS]
+# Carregando variáveis do ambiente (Pydantic-settings cuida disso automaticamente,
+# mas mantemos o load_dotenv se houver variáveis externas ao Settings)
+load_dotenv()
 
-YOUTUBE_LIST_VIDEOS = os.getenv('YOUTUBE_LIST_VIDEOS')
-YOUTUBE_GET_LIKES = os.getenv('YOUTUBE_GET_LIKES')
-INSTAGRAM_LIST_VIDEOS = os.getenv('INSTAGRAM_LIST_VIDEOS')
-INSTAGRAM_GET_LIKES = os.getenv('INSTAGRAM_GET_LIKES')
-TEMPLATE_METRICS_URL = os.getenv('METRICS_URL')
+FLAGS = [
+    settings.flag_threshold,
+    settings.flag_dynamic_distribution,
+    settings.flag_jitter,
+    settings.flag_circuit_breaker
+]
 
 
 # Funções de preparação do ambiente
@@ -51,7 +48,7 @@ def esperar_scheduler():
 
     while True:
         try:
-            res = requests.get(SCHEDULER_HOME)
+            res = requests.get(settings.scheduler_home_url)
             if res.status_code == 200:
                 print('Serviços iniciados com sucesso.\n')
                 break
@@ -81,9 +78,9 @@ def ler_int(mensagem, minimo=None):
 def enviar_campanha(plataforma):
     def escolher_content_id(plataforma):
         if plataforma == 'youtube':
-            videos = requests.get(YOUTUBE_LIST_VIDEOS).json().get('videos')
+            videos = requests.get(settings.youtube_list_url).json().get('videos')
         elif plataforma == 'instagram':
-            videos = requests.get(INSTAGRAM_LIST_VIDEOS).json().get('videos')
+            videos = requests.get(settings.instagram_list_url).json().get('videos')
 
         video_ids = [video['video_id'] for video in videos]
 
@@ -117,7 +114,7 @@ def enviar_campanha(plataforma):
         'content_id': content_id
     }
 
-    response = requests.post(SCHEDULER_CAMPAIGN, params=params)
+    response = requests.post(settings.scheduler_campaign_url, params=params)
 
     if response.status_code == 200:
         print(f'\nCampanha enviada: {plataforma} ({acoes} ações)')
@@ -129,8 +126,8 @@ def enviar_campanha(plataforma):
 
 def ver_likes():
     try:
-        r_youtube = requests.get(YOUTUBE_GET_LIKES)
-        r_instagram = requests.get(INSTAGRAM_GET_LIKES)
+        r_youtube = requests.get(settings.youtube_likes_url)
+        r_instagram = requests.get(settings.instagram_likes_url)
 
         data_youtube = r_youtube.json()
         data_instagram = r_instagram.json()
@@ -209,7 +206,7 @@ def ver_metricas():
     
     for plataforma in plataformas:
         try:
-            response = requests.get(TEMPLATE_METRICS_URL.format(plataforma=plataforma))
+            response = requests.get(settings.metrics_url_template.format(plataforma=plataforma))
             
             if response.status_code == 200:
                 data = response.json()
@@ -308,7 +305,7 @@ def main():
     esperar_scheduler()
 
     global r
-    r = redis.from_url(os.getenv('REDIS_URL'), decode_responses=True)
+    r = redis.from_url(settings.redis_url, decode_responses=True)
     time.sleep(1)
 
     for flag in FLAGS:

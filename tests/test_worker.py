@@ -1,8 +1,7 @@
 import pytest
-import os
 import time
 from unittest.mock import patch, MagicMock
-import httpx
+from config import settings
 
 # Mockamos o redis globalmente para os testes do worker
 @pytest.fixture
@@ -37,9 +36,9 @@ def test_worker_selection_logic(mock_client_class, mock_redis):
     mock_client.post.return_value = mock_response
 
     # Lógica simplificada do worker para validar a integração
-    base_url = "http://youtube:8001/api/youtube/like"
+    url_base = settings.youtube_like_url
     from urllib.parse import urlencode
-    url_alvo = f'{base_url}?{urlencode({"video_id": content_id})}'
+    url_alvo = f'{url_base}?{urlencode({"video_id": content_id})}'
     
     response = mock_client.post(url_alvo)
     
@@ -53,12 +52,15 @@ def test_worker_circuit_breaker_logic_mocked(mock_redis):
     
     # Simulamos o comportamento do redis.get
     def side_effect(key):
-        return {"flag:circuit_breaker": "1", "config:max_pause_time": "64"}.get(key, "0")
+        return {
+            f"flag:{settings.flag_circuit_breaker}": "1", 
+            "config:max_pause_time": "64"
+        }.get(key, "0")
     mock_redis.get.side_effect = side_effect
     
     pause_time = 1
     # Simula o branch do 429 no worker.py
-    if mock_redis.get("flag:circuit_breaker") == "1":
+    if mock_redis.get(f"flag:{settings.flag_circuit_breaker}") == "1":
         max_pause = int(mock_redis.get("config:max_pause_time") or 64)
         pause_time = min(pause_time * 2, max_pause)
             

@@ -1,16 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
-import os
-
-# Configura variáveis de ambiente para os testes
-os.environ["BASE_YOUTUBE_URL"] = "http://mock_youtube:8000"
-os.environ["BASE_INSTAGRAM_URL"] = "http://mock_instagram:8000"
-os.environ["YOUTUBE_LIST_VIDEOS"] = "/list_videos"
-os.environ["INSTAGRAM_LIST_VIDEOS"] = "/list_videos"
-os.environ["SCHEDULER_CAMPAIGN"] = "/start_campaign"
-os.environ["SCHEDULER_POST_CAMPAIGN_RESULT"] = "/throttle"
-os.environ["MONITORING_EVENT_URL"] = "http://monitoring:8000/event"
+from config import settings
 
 # Mock global para o Redis
 mock_redis = MagicMock()
@@ -60,7 +51,7 @@ def test_lock_e_buffer_de_campanhas(client):
     mock_redis.set.side_effect = mock_set
     
     # Envia a primeira campanha para o YouTube (deve ir para a fila e criar o lock pois is_locked e False)
-    response1 = client.post("/start_campaign?platform=youtube&actions=10&content_id=youtube_video_1")
+    response1 = client.post(f"{settings.scheduler_campaign}?platform=youtube&actions=10&content_id=youtube_video_1")
     assert response1.status_code == 200
     assert "adicionada à fila" in response1.json()["message"]
     
@@ -68,7 +59,7 @@ def test_lock_e_buffer_de_campanhas(client):
     mock_redis.set.assert_any_call("lock:youtube", 1, nx=True, ex=120)
 
     # Envia a segunda campanha para o YouTube (deve ir para o buffer pois o lock existe)
-    response2 = client.post("/start_campaign?platform=youtube&actions=5&content_id=youtube_video_2")
+    response2 = client.post(f"{settings.scheduler_campaign}?platform=youtube&actions=5&content_id=youtube_video_2")
     assert response2.status_code == 200
     assert "guardada no buffer" in response2.json()["message"]
     
@@ -79,13 +70,13 @@ def test_lock_e_buffer_de_campanhas(client):
 def test_throttle_diminui_rate_limit(client):
     # Simula a flag ligada no Redis
     def side_effect(key):
-        if "flag:threshold" in key:
+        if settings.flag_threshold in key:
             return '1'
         return None
     mock_redis.get.side_effect = side_effect
     
     # Chama a rota de resultado de campanha informando que rate_limit 120 foi rejeitado (approved=0)
-    response = client.post("/throttle?platform=youtube&rate_limit=120&approved=0")
+    response = client.post(f"{settings.scheduler_post_campaign_result}?platform=youtube&rate_limit=120&approved=0")
     assert response.status_code == 200
     
     # A velocidade atual deve cair (a lógica do seu código reduz para algo próximo da metade)

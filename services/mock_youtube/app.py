@@ -1,11 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, Query
-import os
-import time
-
-# URLs da API
-YOUTUBE_LIST_VIDEOS = os.getenv('YOUTUBE_LIST_VIDEOS')
-YOUTUBE_LIKE_VIDEO = os.getenv('YOUTUBE_LIKE_VIDEO')
-YOUTUBE_GET_LIKES = os.getenv('YOUTUBE_GET_LIKES')
+from config import settings
 
 # Parâmetros de throttling
 LIMIT = 1
@@ -21,7 +15,7 @@ requests_por_ip = {}
 app = FastAPI(title='Fake YouTube')
 
 
-@app.get(YOUTUBE_LIST_VIDEOS)
+@app.get(settings.youtube_list_videos)
 def list_videos():
     return {
         'platform': 'youtube',
@@ -32,7 +26,7 @@ def list_videos():
     }
 
 
-@app.post(YOUTUBE_LIKE_VIDEO)
+@app.post(settings.youtube_like_video)
 def like_video(
     request: Request,
     video_id: str = Query(..., description='Identificador do conteúdo')
@@ -69,7 +63,7 @@ def like_video(
     }
 
 
-@app.get(YOUTUBE_GET_LIKES)
+@app.get(settings.youtube_get_likes)
 def get_likes(video_id: str | None = None):
     if video_id is not None:
         if video_id not in videos:
