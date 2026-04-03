@@ -56,14 +56,14 @@ python main.py
 
 3. Informe quantos workers deseja iniciar.
 
-4. Use o menu exibido no terminal para:
-- Adicionar likes no YouTube
-- Adicionar likes no Instagram
-- Ver likes
-- Mudar flags
-- Configurar teto do circuit breaker
-- Ver métricas de monitoramento (banco de dados)
-- Sair da aplicação
+4. O sistema subirá via Docker Compose e o frontend abrirá automaticamente no navegador (http://localhost:5173).
+
+5. Use o painel web para:
+- Visualizar métricas em tempo real (Dashboard)
+- Lançar campanhas de engajamento (Campanhas)
+- Controlar feature flags e configurar o circuit breaker (Controles)
+- Monitorar likes por vídeo e plataforma (Engajamento)
+
 
 ## Videocast
 
