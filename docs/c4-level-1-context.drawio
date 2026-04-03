@@ -1,22 +1,19 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" version="29.6.5">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36">
   <diagram name="Page-1" id="U-pgC36xO--nKO7zNlbg">
-    <mxGraphModel dx="1207" dy="660" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="1542" dy="567" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="gU6gXM662WcnjdyhK0J_-1" parent="1" style="text;whiteSpace=wrap;html=1;fontColor=light-dark(#000000,#FFFFFF);" value="&lt;span class=&quot;a_GcMg font-feature-liga-off font-feature-clig-off font-feature-calt-off text-decoration-none text-strikethrough-none&quot; style=&quot;caret-color: rgb(0, 0, 0); --Ys-XuQ: none; font-style: normal; font-kerning: normal;&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;Diagrama C4 - nível 1 (Contexto)&lt;/font&gt;&lt;/b&gt;&lt;/span&gt;" vertex="1">
           <mxGeometry height="40" width="230" x="520" y="180" as="geometry" />
         </mxCell>
-        <mxCell id="gU6gXM662WcnjdyhK0J_-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Operador" vertex="1">
-          <mxGeometry height="60" width="120" x="300" y="280" as="geometry" />
-        </mxCell>
         <mxCell id="gU6gXM662WcnjdyhK0J_-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Sistema de Simulação Anti-Platform Throttling" vertex="1">
           <mxGeometry height="100" width="200" x="535" y="260" as="geometry" />
         </mxCell>
-        <mxCell id="gU6gXM662WcnjdyhK0J_-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Simulador Youtube" vertex="1">
+        <mxCell id="gU6gXM662WcnjdyhK0J_-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="API do Youtube (mock)" vertex="1">
           <mxGeometry height="60" width="120" x="830" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="gU6gXM662WcnjdyhK0J_-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Simulador Instagram" vertex="1">
+        <mxCell id="gU6gXM662WcnjdyhK0J_-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="API do Instagram (mock)" vertex="1">
           <mxGeometry height="60" width="120" x="830" y="340" as="geometry" />
         </mxCell>
         <mxCell id="gU6gXM662WcnjdyhK0J_-6" edge="1" parent="1" source="gU6gXM662WcnjdyhK0J_-3" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.25;exitDx=0;exitDy=0;" target="gU6gXM662WcnjdyhK0J_-4" value="">
@@ -31,20 +28,23 @@
             <mxPoint x="830" y="327.5" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="gU6gXM662WcnjdyhK0J_-8" edge="1" parent="1" source="gU6gXM662WcnjdyhK0J_-2" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="gU6gXM662WcnjdyhK0J_-3" value="">
+        <mxCell id="gU6gXM662WcnjdyhK0J_-8" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="gU6gXM662WcnjdyhK0J_-3" value="">
           <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="530" y="250" as="sourcePoint" />
+            <mxPoint x="420" y="310" as="sourcePoint" />
             <mxPoint x="580" y="200" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="gU6gXM662WcnjdyhK0J_-9" parent="1" style="text;whiteSpace=wrap;html=1;fontColor=light-dark(#000000,#FFFFFF);" value="&lt;span class=&quot;a_GcMg font-feature-liga-off font-feature-clig-off font-feature-calt-off text-decoration-none text-strikethrough-none&quot; style=&quot;caret-color: rgb(0, 0, 0); --Ys-XuQ: none; font-weight: 400; font-style: normal; font-kerning: normal;&quot;&gt;Gerencia Campanhas&lt;/span&gt;" vertex="1">
-          <mxGeometry height="40" width="40" x="440" y="270" as="geometry" />
+        <mxCell id="gU6gXM662WcnjdyhK0J_-9" parent="1" style="text;whiteSpace=wrap;html=1;fontColor=light-dark(#000000,#FFFFFF);" value="&lt;span class=&quot;a_GcMg font-feature-liga-off font-feature-clig-off font-feature-calt-off text-decoration-none text-strikethrough-none&quot; style=&quot;caret-color: rgb(0, 0, 0); --Ys-XuQ: none; font-weight: 400; font-style: normal; font-kerning: normal;&quot;&gt;Gerencia Campanhas e visualiza métricas&lt;/span&gt;" vertex="1">
+          <mxGeometry height="40" width="40" x="440" y="240" as="geometry" />
         </mxCell>
         <mxCell id="gU6gXM662WcnjdyhK0J_-10" parent="1" style="text;whiteSpace=wrap;html=1;fontColor=light-dark(#000000,#FFFFFF);" value="&lt;span class=&quot;a_GcMg font-feature-liga-off font-feature-clig-off font-feature-calt-off text-decoration-none text-strikethrough-none&quot; style=&quot;caret-color: rgb(0, 0, 0); --Ys-XuQ: none; font-weight: 400; font-style: normal; font-kerning: normal;&quot;&gt;Envia ações&lt;/span&gt;" vertex="1">
           <mxGeometry height="40" width="70" x="740" y="250" as="geometry" />
         </mxCell>
         <mxCell id="gU6gXM662WcnjdyhK0J_-11" parent="1" style="text;whiteSpace=wrap;html=1;fontColor=light-dark(#000000,#FFFFFF);" value="&lt;span class=&quot;a_GcMg font-feature-liga-off font-feature-clig-off font-feature-calt-off text-decoration-none text-strikethrough-none&quot; style=&quot;caret-color: rgb(0, 0, 0); --Ys-XuQ: none; font-weight: 400; font-style: normal; font-kerning: normal;&quot;&gt;Envia ações&lt;/span&gt;" vertex="1">
           <mxGeometry height="40" width="70" x="740" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="l1CwdZBV-WAeofvfEDkt-2" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Usuário" vertex="1">
+          <mxGeometry height="60" width="30" x="395" y="280" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
